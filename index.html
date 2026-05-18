@@ -4,6 +4,9 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 <title>Mon budget</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#378ADD" />
+<link rel="apple-touch-icon" href="icon-192.png" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css" />
 <style>
 :root {
@@ -513,6 +516,12 @@ function closeBudgetModal() { document.getElementById('budget-modal').classList.
 
 updateDisplays();
 setType('expense');
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js');
+  });
+}
 </script>
 </body>
 </html>
