@@ -127,6 +127,26 @@ body { background: #f0f0f0; }
 .budget-page-total-label { font-size: 13px; color: var(--color-text-secondary); }
 .budget-page-total-value { font-size: 16px; font-weight: 500; color: var(--color-text-primary); }
 .edit-budget-btn { display: flex; align-items: center; gap: 6px; padding: 8px 14px; background: none; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); font-size: 13px; color: var(--color-text-secondary); cursor: pointer; margin-bottom: 14px; }
+.transaction-item { position: relative; }
+.transaction-item.selected { background: #E6F1FB; border-color: #B5D4F4; }
+.tx-checkbox { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--color-border-secondary); background: white; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.15s; }
+.transaction-item.selected .tx-checkbox { background: #378ADD; border-color: #378ADD; }
+.tx-action-sheet { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 200; align-items: flex-end; }
+.tx-action-sheet.open { display: flex; }
+.tx-action-inner { background: var(--color-background-primary); border-radius: 20px 20px 0 0; padding: 20px; width: 100%; }
+.tx-action-inner h3 { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+.tx-action-inner .tx-action-sub { font-size: 13px; color: var(--color-text-secondary); margin-bottom: 16px; }
+.tx-action-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 4px; border: none; background: none; font-size: 15px; cursor: pointer; border-top: 0.5px solid var(--color-border-tertiary); color: var(--color-text-primary); }
+.tx-action-btn.danger { color: #C62828; }
+.tx-action-btn i { font-size: 20px; width: 24px; }
+.select-bar { display: none; background: var(--color-background-primary); border-bottom: 0.5px solid var(--color-border-tertiary); padding: 10px 16px; position: sticky; top: 57px; z-index: 8; align-items: center; justify-content: space-between; }
+.select-bar.visible { display: flex; }
+.select-bar-left { display: flex; align-items: center; gap: 10px; }
+.select-bar-count { font-size: 14px; font-weight: 500; color: var(--color-text-primary); }
+.select-bar-cancel { font-size: 13px; color: #378ADD; background: none; border: none; cursor: pointer; padding: 4px 0; }
+.select-bar-delete { display: flex; align-items: center; gap: 6px; background: #FDEAEA; color: #C62828; border: none; border-radius: var(--border-radius-md); padding: 8px 14px; font-size: 13px; font-weight: 500; cursor: pointer; }
+.select-bar-delete:disabled { opacity: 0.4; cursor: default; }
+.select-all-btn { font-size: 13px; color: #378ADD; background: none; border: none; cursor: pointer; padding: 4px 0; }
 </style>
 </head>
 <body>
@@ -166,7 +186,20 @@ body { background: #f0f0f0; }
       <span class="month-label" id="month-display2"></span>
       <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
     </div>
-    <div class="section-title">Toutes les transactions</div>
+    <div class="select-bar" id="select-bar">
+      <div class="select-bar-left">
+        <button class="select-bar-cancel" onclick="exitSelectMode()">Annuler</button>
+        <span class="select-bar-count" id="select-count">0 sélectionné(s)</span>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="select-all-btn" onclick="selectAll()">Tout</button>
+        <button class="select-bar-delete" id="btn-delete-selected" onclick="deleteSelected()" disabled><i class="ti ti-trash" style="font-size:15px"></i> Supprimer</button>
+      </div>
+    </div>
+    <div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
+      <span>Toutes les transactions</span>
+      <button id="btn-select-mode" onclick="enterSelectMode()" style="font-size:12px;color:#378ADD;background:none;border:none;cursor:pointer;padding:2px 0">Sélectionner</button>
+    </div>
     <div class="transaction-list" id="all-list"></div>
   </div>
 
@@ -254,6 +287,65 @@ body { background: #f0f0f0; }
   </div>
 </div>
 
+<!-- Transaction action sheet -->
+<div class="tx-action-sheet" id="tx-action-sheet">
+  <div class="tx-action-inner">
+    <h3 id="tx-action-desc"></h3>
+    <div class="tx-action-sub" id="tx-action-sub"></div>
+    <button class="tx-action-btn" onclick="startEditTransaction()"><i class="ti ti-edit"></i> Modifier</button>
+    <button class="tx-action-btn danger" onclick="confirmDeleteTransaction()"><i class="ti ti-trash"></i> Supprimer</button>
+    <button class="tx-action-btn" onclick="closeTxActionSheet()"><i class="ti ti-x"></i> Annuler</button>
+  </div>
+</div>
+
+<!-- Edit transaction modal -->
+<div class="modal-bg" id="edit-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeEditModal()"><i class="ti ti-x"></i></button>
+    <h2>Modifier la transaction</h2>
+    <div class="type-toggle">
+      <button class="type-btn active-expense" id="edit-btn-expense" onclick="setEditType('expense')"><i class="ti ti-arrow-up"></i> Dépense</button>
+      <button class="type-btn" id="edit-btn-income" onclick="setEditType('income')"><i class="ti ti-arrow-down"></i> Recette</button>
+    </div>
+    <div class="form-group">
+      <label>Description</label>
+      <input type="text" id="edit-tx-desc" placeholder="Ex : Courses, Loyer..." />
+    </div>
+    <div class="form-group">
+      <label>Montant (€)</label>
+      <input type="number" id="edit-tx-amount" placeholder="0,00" min="0" step="0.01" />
+    </div>
+    <div class="form-group">
+      <label>Catégorie</label>
+      <div class="selected-cat-display" onclick="openEditCatPicker()">
+        <span id="edit-selected-cat-label" style="color:var(--color-text-secondary)">Choisir une catégorie</span>
+        <i class="ti ti-chevron-down"></i>
+      </div>
+    </div>
+    <div class="form-group" id="edit-payment-group">
+      <label>Moyen de paiement</label>
+      <div class="payment-toggle">
+        <button class="payment-btn active-card" id="edit-btn-card" onclick="setEditPayment('card')">
+          <i class="ti ti-credit-card"></i>
+          <div class="pay-label">CB / Virement</div>
+          <div class="pay-sub">Chèque bancaire</div>
+        </button>
+        <button class="payment-btn" id="edit-btn-cash" onclick="setEditPayment('cash')">
+          <i class="ti ti-cash"></i>
+          <div class="pay-label">Espèces</div>
+          <div class="pay-sub">Chèque cadeau, etc.</div>
+        </button>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Date</label>
+      <input type="date" id="edit-tx-date" />
+    </div>
+    <button class="btn-primary" onclick="saveEditTransaction()">Enregistrer</button>
+    <button class="btn-secondary" onclick="closeEditModal()">Annuler</button>
+  </div>
+</div>
+
 <script>
 const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
@@ -288,6 +380,9 @@ let now = new Date();
 let viewYear = now.getFullYear(), viewMonth = now.getMonth();
 let txType = 'expense', selectedCatId = null, selectedPayment = 'card';
 let transactions = [], budgets = {};
+let selectMode = false, selectedIds = new Set();
+let actionTxId = null;
+let editTxId = null, editTxType = 'expense', editSelectedCatId = null, editSelectedPayment = 'card';
 
 function save() {
   try {
@@ -319,8 +414,8 @@ function updateDisplays() {
   const bd = document.getElementById('balance-display');
   bd.textContent = (balance>=0?'+':'')+fmt(balance);
   bd.className = 'balance-amount '+(balance>=0?'positive':'negative');
-  renderList(document.getElementById('recent-list'), txs.slice(-3).reverse());
-  renderList(document.getElementById('all-list'), [...txs].reverse());
+  renderList(document.getElementById('recent-list'), txs.slice(-3).reverse(), false);
+  renderList(document.getElementById('all-list'), [...txs].reverse(), true);
   renderBudgetPage(txs);
 }
 
@@ -330,12 +425,18 @@ function paymentBadge(payment) {
   return `<span class="tx-payment-badge ${isCard?'card':'cash'}"><i class="ti ${isCard?'ti-credit-card':'ti-cash'}" style="font-size:10px"></i>${isCard?'CB':'Espèces'}</span>`;
 }
 
-function renderList(el, txs) {
+function renderList(el, txs, withActions) {
   if (!txs.length) { el.innerHTML='<div class="empty-state"><i class="ti ti-receipt" style="font-size:32px;display:block;margin-bottom:8px"></i>Aucune transaction</div>'; return; }
   el.innerHTML = txs.map(t => {
     const cat=getCatById(t.cat), icon=cat?cat.icon:'ti-box', bg=cat?cat.color:'#F1EFE8';
     const catLabel=cat?(cat.group?cat.group+' · '+cat.label:cat.label):t.cat;
-    return `<div class="transaction-item">
+    const isSelected = selectedIds.has(t.id);
+    const checkbox = withActions && selectMode ? `<div class="tx-checkbox">${isSelected?'<i class="ti ti-check" style="font-size:12px;color:white"></i>':''}</div>` : '';
+    const clickHandler = withActions
+      ? (selectMode ? `onclick="toggleSelect(${t.id})"` : `onclick="openTxActionSheet(${t.id})"`)
+      : '';
+    return `<div class="transaction-item${isSelected?' selected':''}" ${clickHandler}>
+      ${checkbox}
       <div class="tx-icon" style="background:${bg}"><i class="ti ${icon}" style="font-size:16px;color:var(--color-text-primary)"></i></div>
       <div class="tx-info">
         <div class="tx-name">${t.desc}</div>
@@ -349,7 +450,7 @@ function renderList(el, txs) {
 function renderBudgetPage(txs) {
   const el = document.getElementById('budget-page-content');
   const mk = monthKey(viewYear, viewMonth);
-  const hasBudget = budgets[mk] && Object.values(budgets[mk]).some(v=>v>0);
+  const hasBudget = budgets[mk] && Object.values(budgets[mk]).some(v=>v>=0);
   const totalBudget = hasBudget ? Object.values(budgets[mk]).reduce((s,v)=>s+(v||0),0) : 0;
   let html = `<button class="edit-budget-btn" onclick="openBudgetModal()">
     <i class="ti ti-edit"></i>${hasBudget?'Modifier le budget du mois':'Définir le budget du mois'}
@@ -362,15 +463,21 @@ function renderBudgetPage(txs) {
     EXPENSE_CATS.filter(c=>c.group===g).forEach(cat => {
       const spent = txs.filter(t=>t.type==='expense'&&t.cat===cat.id).reduce((s,t)=>s+t.amount,0);
       const budget = getBudgetForCat(cat.id);
-      const hasCatBudget = budget !== null && budget > 0;
-      const pct = hasCatBudget ? Math.min(100,Math.round(spent/budget*100)) : 0;
+      const hasCatBudget = budget !== null;
+      const pct = (hasCatBudget && budget > 0) ? Math.min(100,Math.round(spent/budget*100)) : 0;
       const color = pct>90?'#E24B4A':pct>70?'#EF9F27':'#1D9E75';
+      let amountsHtml;
+      if (hasCatBudget) {
+        amountsHtml = fmt(spent) + ' / ' + fmtInt(budget);
+      } else {
+        amountsHtml = spent > 0 ? fmt(spent) : '<span class="budget-no-def">non défini</span>';
+      }
       html += `<div class="budget-item">
         <div class="budget-header">
           <span class="budget-cat"><i class="ti ${cat.icon}" style="margin-right:6px;font-size:14px"></i>${cat.label}</span>
-          <span class="budget-amounts">${hasCatBudget?fmt(spent)+' / '+fmtInt(budget):(spent>0?fmt(spent):'<span class="budget-no-def">non défini</span>')}</span>
+          <span class="budget-amounts">${amountsHtml}</span>
         </div>
-        ${hasCatBudget?`<div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>`:''}
+        ${(hasCatBudget && budget > 0)?`<div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>`:''}
       </div>`;
     });
   });
@@ -419,6 +526,7 @@ function setPayment(p) {
 }
 
 function openCatPicker() {
+  document.getElementById('cat-picker').dataset.editMode = '';
   const el=document.getElementById('cat-picker-content');
   if (txType==='expense') {
     el.innerHTML=['Besoins','Loisirs'].map(g=>
@@ -441,6 +549,7 @@ function openCatPicker() {
 }
 function closeCatPicker() { document.getElementById('cat-picker').classList.remove('open'); }
 function selectCat(id) {
+  if (document.getElementById('cat-picker').dataset.editMode === '1') { selectEditCat(id); return; }
   selectedCatId=id;
   const cat=getCatById(id);
   const lbl=cat?(cat.group?cat.group+' · '+cat.label:cat.label):id;
@@ -514,9 +623,147 @@ function saveBudget() {
 }
 function closeBudgetModal() { document.getElementById('budget-modal').classList.remove('open'); }
 
+// --- SELECT MODE ---
+function enterSelectMode() {
+  selectMode = true; selectedIds = new Set();
+  document.getElementById('select-bar').classList.add('visible');
+  document.getElementById('btn-select-mode').style.display = 'none';
+  document.getElementById('btn-delete-selected').disabled = true;
+  document.getElementById('select-count').textContent = '0 sélectionné(s)';
+  updateDisplays();
+}
+function exitSelectMode() {
+  selectMode = false; selectedIds = new Set();
+  document.getElementById('select-bar').classList.remove('visible');
+  document.getElementById('btn-select-mode').style.display = '';
+  updateDisplays();
+}
+function toggleSelect(id) {
+  if (selectedIds.has(id)) selectedIds.delete(id); else selectedIds.add(id);
+  const n = selectedIds.size;
+  document.getElementById('select-count').textContent = n + ' sélectionné(s)';
+  document.getElementById('btn-delete-selected').disabled = n === 0;
+  updateDisplays();
+}
+function selectAll() {
+  const mk = monthKey(viewYear, viewMonth);
+  const txs = transactions.filter(t=>t.date.startsWith(mk));
+  txs.forEach(t => selectedIds.add(t.id));
+  const n = selectedIds.size;
+  document.getElementById('select-count').textContent = n + ' sélectionné(s)';
+  document.getElementById('btn-delete-selected').disabled = n === 0;
+  updateDisplays();
+}
+function deleteSelected() {
+  if (selectedIds.size === 0) return;
+  if (!confirm(`Supprimer ${selectedIds.size} transaction(s) ?`)) return;
+  transactions = transactions.filter(t => !selectedIds.has(t.id));
+  save(); exitSelectMode();
+}
+
+// --- ACTION SHEET ---
+function openTxActionSheet(id) {
+  actionTxId = id;
+  const t = transactions.find(tx=>tx.id===id);
+  if (!t) return;
+  const cat = getCatById(t.cat);
+  const catLabel = cat ? (cat.group ? cat.group+' · '+cat.label : cat.label) : t.cat;
+  document.getElementById('tx-action-desc').textContent = t.desc;
+  document.getElementById('tx-action-sub').textContent = (t.type==='income'?'+':'-') + fmt(t.amount) + '  ·  ' + catLabel + '  ·  ' + t.date.split('-').reverse().join('/');
+  document.getElementById('tx-action-sheet').classList.add('open');
+}
+function closeTxActionSheet() {
+  document.getElementById('tx-action-sheet').classList.remove('open');
+  actionTxId = null;
+}
+function confirmDeleteTransaction() {
+  closeTxActionSheet();
+  if (!confirm('Supprimer cette transaction ?')) return;
+  transactions = transactions.filter(t=>t.id!==actionTxId);
+  save(); updateDisplays();
+}
+
+// --- EDIT TRANSACTION ---
+function startEditTransaction() {
+  const t = transactions.find(tx=>tx.id===actionTxId);
+  if (!t) return;
+  closeTxActionSheet();
+  editTxId = t.id;
+  editTxType = t.type;
+  editSelectedCatId = t.cat;
+  editSelectedPayment = t.payment || 'card';
+  document.getElementById('edit-tx-desc').value = t.desc;
+  document.getElementById('edit-tx-amount').value = t.amount;
+  document.getElementById('edit-tx-date').value = t.date;
+  setEditType(t.type);
+  setEditPayment(editSelectedPayment);
+  const cat = getCatById(t.cat);
+  const lbl = cat ? (cat.group ? cat.group+' · '+cat.label : cat.label) : t.cat;
+  const el = document.getElementById('edit-selected-cat-label');
+  el.textContent = lbl; el.style.color = 'var(--color-text-primary)';
+  document.getElementById('edit-modal').classList.add('open');
+}
+function closeEditModal() { document.getElementById('edit-modal').classList.remove('open'); }
+function setEditType(type) {
+  editTxType = type; editSelectedCatId = null;
+  document.getElementById('edit-selected-cat-label').textContent = 'Choisir une catégorie';
+  document.getElementById('edit-selected-cat-label').style.color = 'var(--color-text-secondary)';
+  document.getElementById('edit-btn-expense').className = 'type-btn'+(type==='expense'?' active-expense':'');
+  document.getElementById('edit-btn-income').className = 'type-btn'+(type==='income'?' active-income':'');
+  document.getElementById('edit-payment-group').style.display = type==='expense'?'block':'none';
+}
+function setEditPayment(p) {
+  editSelectedPayment = p;
+  document.getElementById('edit-btn-card').className = 'payment-btn'+(p==='card'?' active-card':'');
+  document.getElementById('edit-btn-cash').className = 'payment-btn'+(p==='cash'?' active-cash':'');
+}
+function openEditCatPicker() {
+  const el = document.getElementById('cat-picker-content');
+  const isExpense = editTxType === 'expense';
+  if (isExpense) {
+    el.innerHTML = ['Besoins','Loisirs'].map(g =>
+      `<div class="cat-group-label">${g}</div>` +
+      EXPENSE_CATS.filter(c=>c.group===g).map(c =>
+        `<div class="cat-row${editSelectedCatId===c.id?' selected':''}" onclick="selectEditCat('${c.id}')">
+          <div class="cat-row-icon" style="background:${c.color}"><i class="ti ${c.icon}" style="font-size:15px;color:var(--color-text-primary)"></i></div>
+          <div class="cat-row-name">${c.label}</div>
+          ${editSelectedCatId===c.id?'<i class="ti ti-check" style="color:#185FA5"></i>':''}
+        </div>`).join('')).join('');
+  } else {
+    el.innerHTML = INCOME_CATS.map(c =>
+      `<div class="cat-row${editSelectedCatId===c.id?' selected':''}" onclick="selectEditCat('${c.id}')">
+        <div class="cat-row-icon" style="background:#EAF3DE"><i class="ti ${c.icon}" style="font-size:15px;color:var(--color-text-primary)"></i></div>
+        <div class="cat-row-name">${c.label}</div>
+        ${editSelectedCatId===c.id?'<i class="ti ti-check" style="color:#3B6D11"></i>':''}
+      </div>`).join('');
+  }
+  document.getElementById('cat-picker').classList.add('open');
+  document.getElementById('cat-picker').dataset.editMode = '1';
+}
+function selectEditCat(id) {
+  editSelectedCatId = id;
+  const cat = getCatById(id);
+  const lbl = cat ? (cat.group ? cat.group+' · '+cat.label : cat.label) : id;
+  const el = document.getElementById('edit-selected-cat-label');
+  el.textContent = lbl; el.style.color = 'var(--color-text-primary)';
+  closeCatPicker();
+}
+function saveEditTransaction() {
+  const desc = document.getElementById('edit-tx-desc').value.trim();
+  const amount = parseFloat(document.getElementById('edit-tx-amount').value);
+  const date = document.getElementById('edit-tx-date').value;
+  if (!desc||!amount||amount<=0||!date) { alert('Veuillez remplir tous les champs.'); return; }
+  if (!editSelectedCatId) { alert('Veuillez choisir une catégorie.'); return; }
+  const idx = transactions.findIndex(t=>t.id===editTxId);
+  if (idx === -1) return;
+  transactions[idx] = { ...transactions[idx], type: editTxType, desc, amount, cat: editSelectedCatId, date };
+  if (editTxType === 'expense') transactions[idx].payment = editSelectedPayment;
+  else delete transactions[idx].payment;
+  save(); closeEditModal(); updateDisplays();
+}
+
 updateDisplays();
 setType('expense');
-
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./service-worker.js');
