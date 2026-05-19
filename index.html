@@ -784,8 +784,12 @@ setType('expense');
   }
 
 function applyUpdate() {
-  if (newWorker) newWorker.postMessage({ action: 'skipWaiting' });
-  window.location.reload();
+  navigator.serviceWorker.getRegistration().then(reg => {
+    if (reg && reg.waiting) {
+      reg.waiting.postMessage({ action: 'skipWaiting' });
+    }
+    window.location.reload();
+  });
 }
 </script>
 </body>
