@@ -767,10 +767,25 @@ function saveEditTransaction() {
 
 updateDisplays();
 setType('expense');
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js');
-  });
+  let newWorker;
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./service-worker.js').then(reg => {
+        reg.addEventListener('updatefound', () => {
+          newWorker = reg.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              document.getElementById('update-banner').style.display = 'block';
+            }
+          });
+        });
+      });
+    });
+  }
+
+function applyUpdate() {
+  if (newWorker) newWorker.postMessage({ action: 'skipWaiting' });
+  window.location.reload();
 }
 </script>
 </body>
