@@ -767,28 +767,30 @@ function saveEditTransaction() {
 
 updateDisplays();
 setType('expense');
-  let newWorker;
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./service-worker.js').then(reg => {
-        reg.addEventListener('updatefound', () => {
-          newWorker = reg.installing;
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              document.getElementById('update-banner').style.display = 'block';
-            }
-          });
+let newWorker;
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js').then(reg => {
+      reg.addEventListener('updatefound', () => {
+        newWorker = reg.installing;
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            document.getElementById('update-banner').style.display = 'block';
+          }
         });
       });
     });
-  }
+  });
 
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  });
+}
 function applyUpdate() {
   navigator.serviceWorker.getRegistration().then(reg => {
     if (reg && reg.waiting) {
       reg.waiting.postMessage({ action: 'skipWaiting' });
     }
-    window.location.reload();
   });
 }
 </script>
