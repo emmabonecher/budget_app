@@ -682,9 +682,10 @@ function closeTxActionSheet() {
   actionTxId = null;
 }
 function confirmDeleteTransaction() {
-  closeTxActionSheet();
   if (!confirm('Supprimer cette transaction ?')) return;
-  transactions = transactions.filter(t=>t.id!==actionTxId);
+  const idToDelete = actionTxId;
+  closeTxActionSheet();
+  transactions = transactions.filter(t => t.id !== idToDelete);
   save(); updateDisplays();
 }
 
