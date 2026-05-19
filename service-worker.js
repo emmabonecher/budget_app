@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mon-budget-v5';
+const CACHE_NAME = 'mon-budget-v6';
 const ASSETS = [
   './',
   './index.html',
@@ -28,4 +28,8 @@ self.addEventListener('fetch', e => {
   e.respondWith(
     caches.match(e.request).then(cached => cached || fetch(e.request))
   );
+});
+
+self.addEventListener('message', e => {
+  if (e.data && e.data.action === 'skipWaiting') self.skipWaiting();
 });
