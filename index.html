@@ -478,7 +478,7 @@ function renderBudgetPage(txs) {
           <span class="budget-cat"><i class="ti ${cat.icon}" style="margin-right:6px;font-size:14px"></i>${cat.label}</span>
           <span class="budget-amounts">${amountsHtml}</span>
         </div>
-        ${(hasCatBudget && budget > 0)?`<div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>`:''}
+        ${hasCatBudget ? `<div class="progress-bar"><div class="progress-fill" style="width:${budget === 0 ? 100 : pct}%;background:${budget === 0 ? (spent === 0 ? '#1D9E75' : '#E24B4A') : color}"></div></div>` : ''}
       </div>`;
     });
   });
