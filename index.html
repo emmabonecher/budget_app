@@ -706,7 +706,7 @@ function startEditTransaction() {
 }
 function closeEditModal() { document.getElementById('edit-modal').classList.remove('open'); }
 function setEditType(type) {
-  editTxType = type; editSelectedCatId = null;
+  editTxType = type;
   document.getElementById('edit-btn-expense').className = 'type-btn'+(type==='expense'?' active-expense':'');
   document.getElementById('edit-btn-income').className = 'type-btn'+(type==='income'?' active-income':'');
   document.getElementById('edit-payment-group').style.display = type==='expense'?'block':'none';
