@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mon-budget-v14';
+const CACHE_NAME = 'mon-budget-v15';
 const ASSETS = [
   './',
   './index.html',
@@ -18,14 +18,15 @@ self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
       Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
-    )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.url.includes('service-worker.js')) {
-    e.respondWith(fetch(e.request));
+  if (e.request.mode === 'navigate') {
+    e.respondWith(
+      fetch(e.request).catch(() => caches.match('./index.html'))
+    );
     return;
   }
   e.respondWith(
