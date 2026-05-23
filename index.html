@@ -465,6 +465,13 @@ function renderBudgetPage(txs) {
   if (hasBudget) {
     html += `<div class="budget-page-total"><span class="budget-page-total-label">Total budgété</span><span class="budget-page-total-value">${fmtInt(totalBudget)}</span></div>`;
   }
+  const cashTotal = txs.filter(t => t.type === 'expense' && t.payment === 'cash').reduce((s, t) => s + t.amount, 0);
+html += `<div style="background:var(--color-background-success);border:0.5px solid var(--color-border-success);border-radius:var(--border-radius-md);padding:12px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+  <span style="font-size:13px;color:var(--color-text-success);display:flex;align-items:center;gap:6px">
+    <i class="ti ti-cash"></i> Dépenses en espèces
+  </span>
+  <span style="font-size:15px;font-weight:500;color:var(--color-text-success)">${cashTotal > 0 ? fmt(cashTotal) : '–'}</span>
+</div>`;
  GROUPS.forEach(g => {
   const groupCats = EXPENSE_CATS.filter(c => c.group === g);
   const groupSpent = groupCats.reduce((s, cat) =>
