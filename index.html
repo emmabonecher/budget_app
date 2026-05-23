@@ -529,6 +529,7 @@ function showPage(name) {
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
   document.getElementById('page-'+name).classList.add('active');
   document.getElementById('nav-'+name).classList.add('active');
+  document.querySelector('.fab').style.display = name === 'budget' ? 'none' : 'flex';
 }
 
 function changeMonth(dir) {
