@@ -479,9 +479,10 @@ function renderBudgetPage(txs) {
     : groupSpent > 0
       ? `<span style="font-size:12px;font-weight:400;color:var(--color-text-secondary);margin-left:8px">${fmt(groupSpent)}</span>`
       : '';
-  html += `<div class="section-title" style="margin-top:16px;display:flex;justify-content:space-between;align-items:center">
-    <span>${g}</span>${subtotalHtml}
-  </div>`;
+  html += `<div style="margin-top:16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;background:var(--color-background-secondary);border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);padding:8px 12px">
+  <span style="font-size:12px;font-weight:600;color:var(--color-text-secondary);text-transform:uppercase;letter-spacing:0.05em">${g}</span>
+  ${subtotalHtml}
+</div>`;
   EXPENSE_CATS.filter(c=>c.group===g).forEach(cat => {
       const spent = txs.filter(t=>t.type==='expense'&&t.cat===cat.id).reduce((s,t)=>s+t.amount,0);
       const budget = getBudgetForCat(cat.id);
