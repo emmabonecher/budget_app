@@ -465,7 +465,7 @@ function renderBudgetPage(txs) {
   if (hasBudget) {
     html += `<div class="budget-page-total"><span class="budget-page-total-label">Total budgété</span><span class="budget-page-total-value">${fmtInt(totalBudget)}</span></div>`;
   }
- [GROUPS].forEach(g => {
+ GROUPS.forEach(g => {
   const groupCats = EXPENSE_CATS.filter(c => c.group === g);
   const groupSpent = groupCats.reduce((s, cat) =>
     s + txs.filter(t => t.type === 'expense' && t.cat === cat.id).reduce((a, t) => a + t.amount, 0), 0);
@@ -551,7 +551,7 @@ function openCatPicker() {
   document.getElementById('cat-picker').dataset.editMode = '';
   const el=document.getElementById('cat-picker-content');
   if (txType==='expense') {
-    el.innerHTML=[GROUPS].map(g=>
+    el.innerHTML=GROUPS.map(g=>
       `<div class="cat-group-label">${g}</div>`+
       EXPENSE_CATS.filter(c=>c.group===g).map(c=>
         `<div class="cat-row${selectedCatId===c.id?' selected':''}" onclick="selectCat('${c.id}')">
@@ -608,7 +608,7 @@ function openBudgetModal() {
 
 function renderBudgetEditor(current) {
   let html='';
-  [GROUPS].forEach(g=>{
+  GROUPS.forEach(g=>{
     html+=`<div class="budget-group-label">${g}</div>`;
     EXPENSE_CATS.filter(c=>c.group===g).forEach(c=>{
       const val=current[c.id]!=null&&current[c.id]>0?current[c.id]:'';
@@ -742,7 +742,7 @@ function openEditCatPicker() {
   const el = document.getElementById('cat-picker-content');
   const isExpense = editTxType === 'expense';
   if (isExpense) {
-    el.innerHTML = [GROUPS].map(g =>
+    el.innerHTML = GROUPS.map(g =>
       `<div class="cat-group-label">${g}</div>` +
       EXPENSE_CATS.filter(c=>c.group===g).map(c =>
         `<div class="cat-row${editSelectedCatId===c.id?' selected':''}" onclick="selectEditCat('${c.id}')">
