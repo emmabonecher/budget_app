@@ -353,6 +353,8 @@ body { background: #f0f0f0; }
 <script>
 const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
 
+const GROUPS = ['Besoins', 'Loisirs', 'Vacances'];
+  
 const EXPENSE_CATS = [
   { group:'Besoins', id:'besoins-bus',         label:'Transport – Bus, Uber, Train',  icon:'ti-bus',              color:'#E6F1FB' },
   { group:'Besoins', id:'besoins-voiture',     label:'Transport – Voiture',           icon:'ti-car',              color:'#E6F1FB' },
@@ -370,8 +372,8 @@ const EXPENSE_CATS = [
   { group:'Loisirs', id:'loisirs-amenagement', label:'Shopping – Aménagement',        icon:'ti-sofa',             color:'#EEEDFE' },
   { group:'Loisirs', id:'loisirs-equipement',  label:'Shopping – Équipement',         icon:'ti-device-laptop',    color:'#EEEDFE' },
   { group:'Loisirs', id:'loisirs-cadeaux',     label:'Cadeaux et anniversaires',      icon:'ti-gift',             color:'#EEEDFE' },
-  { group:'Loisirs', id:'loisirs-vacances-train', label:'Vacances / Voyages – Train', icon:'ti-train',            color:'#EEEDFE' },
-  { group:'Loisirs', id:'loisirs-vacances',    label:'Vacances / Voyages',            icon:'ti-plane',            color:'#EEEDFE' },
+  { group:'Vacances', id:'loisirs-vacances-train', label:'Vacances / Voyages – Train', icon:'ti-train',            color:'#EEEDFE' },
+  { group:'Vacances', id:'loisirs-vacances',    label:'Vacances / Voyages',            icon:'ti-plane',            color:'#EEEDFE' },
 ];
 
 const INCOME_CATS = [
@@ -463,9 +465,24 @@ function renderBudgetPage(txs) {
   if (hasBudget) {
     html += `<div class="budget-page-total"><span class="budget-page-total-label">Total budgété</span><span class="budget-page-total-value">${fmtInt(totalBudget)}</span></div>`;
   }
-  ['Besoins','Loisirs'].forEach(g => {
-    html += `<div class="section-title" style="margin-top:16px">${g}</div>`;
-    EXPENSE_CATS.filter(c=>c.group===g).forEach(cat => {
+ [GROUPS].forEach(g => {
+  const groupCats = EXPENSE_CATS.filter(c => c.group === g);
+  const groupSpent = groupCats.reduce((s, cat) =>
+    s + txs.filter(t => t.type === 'expense' && t.cat === cat.id).reduce((a, t) => a + t.amount, 0), 0);
+  const groupBudget = groupCats.reduce((s, cat) => {
+    const b = getBudgetForCat(cat.id);
+    return s + (b !== null ? b : 0);
+  }, 0);
+  const hasGroupBudget = groupCats.some(cat => getBudgetForCat(cat.id) !== null);
+  const subtotalHtml = hasGroupBudget
+    ? `<span style="font-size:12px;font-weight:400;color:var(--color-text-secondary);margin-left:8px">${fmt(groupSpent)} / ${fmtInt(groupBudget)}</span>`
+    : groupSpent > 0
+      ? `<span style="font-size:12px;font-weight:400;color:var(--color-text-secondary);margin-left:8px">${fmt(groupSpent)}</span>`
+      : '';
+  html += `<div class="section-title" style="margin-top:16px;display:flex;justify-content:space-between;align-items:center">
+    <span>${g}</span>${subtotalHtml}
+  </div>`;
+  EXPENSE_CATS.filter(c=>c.group===g).forEach(cat => {
       const spent = txs.filter(t=>t.type==='expense'&&t.cat===cat.id).reduce((s,t)=>s+t.amount,0);
       const budget = getBudgetForCat(cat.id);
       const hasCatBudget = budget !== null;
@@ -534,7 +551,7 @@ function openCatPicker() {
   document.getElementById('cat-picker').dataset.editMode = '';
   const el=document.getElementById('cat-picker-content');
   if (txType==='expense') {
-    el.innerHTML=['Besoins','Loisirs'].map(g=>
+    el.innerHTML=[GROUPS].map(g=>
       `<div class="cat-group-label">${g}</div>`+
       EXPENSE_CATS.filter(c=>c.group===g).map(c=>
         `<div class="cat-row${selectedCatId===c.id?' selected':''}" onclick="selectCat('${c.id}')">
@@ -591,7 +608,7 @@ function openBudgetModal() {
 
 function renderBudgetEditor(current) {
   let html='';
-  ['Besoins','Loisirs'].forEach(g=>{
+  [GROUPS].forEach(g=>{
     html+=`<div class="budget-group-label">${g}</div>`;
     EXPENSE_CATS.filter(c=>c.group===g).forEach(c=>{
       const val=current[c.id]!=null&&current[c.id]>0?current[c.id]:'';
@@ -725,7 +742,7 @@ function openEditCatPicker() {
   const el = document.getElementById('cat-picker-content');
   const isExpense = editTxType === 'expense';
   if (isExpense) {
-    el.innerHTML = ['Besoins','Loisirs'].map(g =>
+    el.innerHTML = [GROUPS].map(g =>
       `<div class="cat-group-label">${g}</div>` +
       EXPENSE_CATS.filter(c=>c.group===g).map(c =>
         `<div class="cat-row${editSelectedCatId===c.id?' selected':''}" onclick="selectEditCat('${c.id}')">
