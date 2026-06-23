@@ -90,6 +90,7 @@ body { background: #f0f0f0; }
 .payment-btn.active-cash .pay-sub { color: #639922; }
 .btn-primary { width: 100%; padding: 14px; background: #378ADD; color: white; border: none; border-radius: var(--border-radius-md); font-size: 15px; font-weight: 500; cursor: pointer; margin-top: 8px; }
 .btn-secondary { width: 100%; padding: 12px; background: none; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); font-size: 14px; color: var(--color-text-secondary); cursor: pointer; margin-top: 8px; }
+.btn-danger-secondary { background: var(--color-background-danger); border-color: var(--color-border-danger); color: var(--color-text-danger); }
 .modal-close { float: right; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--color-text-secondary); }
 .empty-state { text-align: center; padding: 40px 20px; color: var(--color-text-tertiary); font-size: 14px; }
 .month-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
@@ -139,8 +140,13 @@ body { background: #f0f0f0; }
 .tx-action-btn { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 4px; border: none; background: none; font-size: 15px; cursor: pointer; border-top: 0.5px solid var(--color-border-tertiary); color: var(--color-text-primary); }
 .tx-action-btn.danger { color: #C62828; }
 .tx-action-btn i { font-size: 20px; width: 24px; }
-.select-bar { display: none; background: var(--color-background-primary); border-bottom: 0.5px solid var(--color-border-tertiary); padding: 10px 16px; position: sticky; top: 57px; z-index: 8; align-items: center; justify-content: space-between; }
+.select-bar { display: none; background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 8px 12px; margin-bottom: 10px; align-items: center; justify-content: space-between; }
 .select-bar.visible { display: flex; }
+/* Merged main page layout */
+.summary-sticky { background: var(--color-background-primary); padding: 16px 16px 12px; position: sticky; top: 97px; z-index: 7; transition: transform 0.25s ease, opacity 0.25s ease; }
+.summary-sticky.hidden { transform: translateY(-20px); opacity: 0; pointer-events: none; }
+.main-tx-section { padding: 0 16px 80px; }
+#page-main { padding: 0; overflow: visible; }
 .select-bar-left { display: flex; align-items: center; gap: 10px; }
 .select-bar-count { font-size: 14px; font-weight: 500; color: var(--color-text-primary); }
 .select-bar-cancel { font-size: 13px; color: #378ADD; background: none; border: none; cursor: pointer; padding: 4px 0; }
@@ -161,50 +167,45 @@ body { background: #f0f0f0; }
     <p id="header-month"></p>
   </div>
   <div class="nav">
-    <button class="nav-btn active" onclick="showPage('dashboard')" id="nav-dashboard"><i class="ti ti-home"></i>Accueil</button>
-    <button class="nav-btn" onclick="showPage('transactions')" id="nav-transactions"><i class="ti ti-list"></i>Transactions</button>
+    <button class="nav-btn active" onclick="showPage('main')" id="nav-main"><i class="ti ti-home"></i>Accueil</button>
     <button class="nav-btn" onclick="showPage('budget')" id="nav-budget"><i class="ti ti-chart-bar"></i>Budget</button>
   </div>
 
-  <div class="page active" id="page-dashboard">
-    <div class="month-nav">
-      <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
-      <span class="month-label" id="month-display"></span>
-      <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
-    </div>
-    <div class="balance-card">
-      <div class="balance-label">Solde du mois</div>
-      <div class="balance-amount" id="balance-display">0,00 €</div>
-    </div>
-    <div class="stats-grid">
-      <div class="stat-card"><div class="stat-label"><i class="ti ti-arrow-down"></i> Recettes</div><div class="stat-value income" id="income-display">0,00 €</div></div>
-      <div class="stat-card"><div class="stat-label"><i class="ti ti-arrow-up"></i> Dépenses</div><div class="stat-value expense" id="expense-display">0,00 €</div></div>
-    </div>
-    <div class="section-title">Dernières transactions</div>
-    <div class="transaction-list" id="recent-list"></div>
-  </div>
-
-  <div class="page" id="page-transactions">
-    <div class="month-nav">
-      <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
-      <span class="month-label" id="month-display2"></span>
-      <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
-    </div>
-    <div class="select-bar" id="select-bar">
-      <div class="select-bar-left">
-        <button class="select-bar-cancel" onclick="exitSelectMode()">Annuler</button>
-        <span class="select-bar-count" id="select-count">0 sélectionné(s)</span>
+  <div class="page active" id="page-main">
+    <!-- Sticky summary header (will hide on scroll) -->
+    <div class="summary-sticky" id="summary-sticky">
+      <div class="month-nav" style="margin-bottom:12px">
+        <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
+        <span class="month-label" id="month-display"></span>
+        <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
       </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <button class="select-all-btn" onclick="selectAll()">Tout</button>
-        <button class="select-bar-delete" id="btn-delete-selected" onclick="deleteSelected()" disabled><i class="ti ti-trash" style="font-size:15px"></i> Supprimer</button>
+      <div class="balance-card" style="margin-bottom:10px">
+        <div class="balance-label">Solde du mois</div>
+        <div class="balance-amount" id="balance-display">0,00 €</div>
+      </div>
+      <div class="stats-grid" style="margin-bottom:0">
+        <div class="stat-card"><div class="stat-label"><i class="ti ti-arrow-down"></i> Recettes</div><div class="stat-value income" id="income-display">0,00 €</div></div>
+        <div class="stat-card"><div class="stat-label"><i class="ti ti-arrow-up"></i> Dépenses</div><div class="stat-value expense" id="expense-display">0,00 €</div></div>
       </div>
     </div>
-    <div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
-      <span>Toutes les transactions</span>
-      <button id="btn-select-mode" onclick="enterSelectMode()" style="font-size:12px;color:#378ADD;background:none;border:none;cursor:pointer;padding:2px 0">Sélectionner</button>
+    <!-- Transactions list (scrollable) -->
+    <div class="main-tx-section">
+      <div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
+        <span>Transactions</span>
+        <button id="btn-select-mode" onclick="enterSelectMode()" style="font-size:12px;color:#378ADD;background:none;border:none;cursor:pointer;padding:2px 0">Sélectionner</button>
+      </div>
+      <div class="select-bar" id="select-bar">
+        <div class="select-bar-left">
+          <button class="select-bar-cancel" onclick="exitSelectMode()">Annuler</button>
+          <span class="select-bar-count" id="select-count">0 sélectionné(s)</span>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button class="select-all-btn" onclick="selectAll()">Tout</button>
+          <button class="select-bar-delete" id="btn-delete-selected" onclick="deleteSelected()" disabled><i class="ti ti-trash" style="font-size:15px"></i> Supprimer</button>
+        </div>
+      </div>
+      <div class="transaction-list" id="all-list"></div>
     </div>
-    <div class="transaction-list" id="all-list"></div>
   </div>
 
   <div class="page" id="page-budget">
@@ -291,16 +292,7 @@ body { background: #f0f0f0; }
   </div>
 </div>
 
-<!-- Transaction action sheet -->
-<div class="tx-action-sheet" id="tx-action-sheet">
-  <div class="tx-action-inner">
-    <h3 id="tx-action-desc"></h3>
-    <div class="tx-action-sub" id="tx-action-sub"></div>
-    <button class="tx-action-btn" onclick="startEditTransaction()"><i class="ti ti-edit"></i> Modifier</button>
-    <button class="tx-action-btn danger" onclick="confirmDeleteTransaction()"><i class="ti ti-trash"></i> Supprimer</button>
-    <button class="tx-action-btn" onclick="closeTxActionSheet()"><i class="ti ti-x"></i> Annuler</button>
-  </div>
-</div>
+
 
 <!-- Edit transaction modal -->
 <div class="modal-bg" id="edit-modal">
@@ -346,7 +338,7 @@ body { background: #f0f0f0; }
       <input type="date" id="edit-tx-date" />
     </div>
     <button class="btn-primary" onclick="saveEditTransaction()">Enregistrer</button>
-    <button class="btn-secondary" onclick="closeEditModal()">Annuler</button>
+    <button class="btn-secondary btn-danger-secondary" onclick="confirmDeleteFromEdit()"><i class="ti ti-trash" style="font-size:14px;margin-right:6px"></i>Supprimer</button>
   </div>
 </div>
 
@@ -410,7 +402,7 @@ function prevMonthKey(y,m) { let pm=m-1,py=y; if(pm<0){pm=11;py--;} return month
 
 function updateDisplays() {
   const label = MONTHS[viewMonth]+' '+viewYear;
-  ['month-display','month-display2','month-display3'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=label;});
+  ['month-display','month-display3'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=label;});
   document.getElementById('header-month').textContent = label;
   const txs = getMonthTx();
   const income = txs.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
@@ -421,8 +413,12 @@ function updateDisplays() {
   const bd = document.getElementById('balance-display');
   bd.textContent = (balance>=0?'+':'')+fmt(balance);
   bd.className = 'balance-amount '+(balance>=0?'positive':'negative');
-  renderList(document.getElementById('recent-list'), txs.slice(-3).reverse(), false);
-  renderList(document.getElementById('all-list'), [...txs].reverse(), true);
+  // Sort by date desc, then by insertion order desc (id is timestamp)
+  const sorted = [...txs].sort((a,b) => {
+    if (b.date !== a.date) return b.date.localeCompare(a.date);
+    return b.id - a.id;
+  });
+  renderList(document.getElementById('all-list'), sorted, true);
   renderBudgetPage(txs);
 }
 
@@ -440,7 +436,7 @@ function renderList(el, txs, withActions) {
     const isSelected = selectedIds.has(t.id);
     const checkbox = withActions && selectMode ? `<div class="tx-checkbox">${isSelected?'<i class="ti ti-check" style="font-size:12px;color:white"></i>':''}</div>` : '';
     const clickHandler = withActions
-      ? (selectMode ? `onclick="toggleSelect(${t.id})"` : `onclick="openTxActionSheet(${t.id})"`)
+      ? (selectMode ? `onclick="toggleSelect(${t.id})"` : `onclick="openEditFromList(${t.id})"`)
       : '';
     return `<div class="transaction-item${isSelected?' selected':''}" ${clickHandler}>
       ${checkbox}
@@ -531,6 +527,22 @@ function showPage(name) {
   document.getElementById('nav-'+name).classList.add('active');
   document.querySelector('.fab').style.display = name === 'budget' ? 'none' : 'flex';
 }
+
+// Scroll-to-hide summary
+(function() {
+  let lastScroll = 0;
+  window.addEventListener('scroll', () => {
+    const el = document.getElementById('summary-sticky');
+    if (!el) return;
+    const cur = window.scrollY;
+    if (cur > lastScroll && cur > 60) {
+      el.classList.add('hidden');
+    } else {
+      el.classList.remove('hidden');
+    }
+    lastScroll = cur;
+  }, { passive: true });
+})();
 
 function changeMonth(dir) {
   viewMonth+=dir;
@@ -676,7 +688,7 @@ function enterSelectMode() {
 function exitSelectMode() {
   selectMode = false; selectedIds = new Set();
   document.getElementById('select-bar').classList.remove('visible');
-  document.getElementById('btn-select-mode').style.display = '';
+  document.getElementById('btn-select-mode').style.display = 'inline';
   updateDisplays();
 }
 function toggleSelect(id) {
@@ -702,25 +714,16 @@ function deleteSelected() {
   save(); exitSelectMode();
 }
 
-// --- ACTION SHEET ---
-function openTxActionSheet(id) {
-  actionTxId = id;
-  const t = transactions.find(tx=>tx.id===id);
-  if (!t) return;
-  const cat = getCatById(t.cat);
-  const catLabel = cat ? (cat.group ? cat.group+' · '+cat.label : cat.label) : t.cat;
-  document.getElementById('tx-action-desc').textContent = t.desc;
-  document.getElementById('tx-action-sub').textContent = (t.type==='income'?'+':'-') + fmt(t.amount) + '  ·  ' + catLabel + '  ·  ' + t.date.split('-').reverse().join('/');
-  document.getElementById('tx-action-sheet').classList.add('open');
+// --- OPEN EDIT DIRECTLY FROM LIST ---
+function openEditFromList(id) {
+  actionTxId = typeof id === 'string' ? parseInt(id, 10) : id;
+  startEditTransaction();
 }
-function closeTxActionSheet() {
-  document.getElementById('tx-action-sheet').classList.remove('open');
-  actionTxId = null;
-}
-function confirmDeleteTransaction() {
+
+function confirmDeleteFromEdit() {
   if (!confirm('Supprimer cette transaction ?')) return;
-  const idToDelete = actionTxId;
-  closeTxActionSheet();
+  const idToDelete = editTxId;
+  closeEditModal();
   transactions = transactions.filter(t => t.id !== idToDelete);
   save(); updateDisplays();
 }
@@ -729,7 +732,6 @@ function confirmDeleteTransaction() {
 function startEditTransaction() {
   const t = transactions.find(tx=>tx.id===actionTxId);
   if (!t) return;
-  closeTxActionSheet();
   editTxId = t.id;
   editTxType = t.type;
   editSelectedCatId = t.cat;
@@ -804,6 +806,7 @@ function saveEditTransaction() {
 
 updateDisplays();
 setType('expense');
+showPage('main');
 let newWorker;
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
