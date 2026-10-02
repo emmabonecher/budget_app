@@ -173,6 +173,11 @@ body { background: #f0f0f0; }
 .color-grid { display: flex; flex-wrap: wrap; gap: 10px; }
 .color-choice { width: 34px; height: 34px; border-radius: 50%; border: 0.5px solid var(--color-border-secondary); cursor: pointer; }
 .color-choice.selected { border: 2.5px solid #378ADD; }
+  /* ===== Glisser-déposer ===== */
+.drag-handle { touch-action: none; cursor: grab; color: var(--color-text-tertiary); font-size: 18px; padding: 6px 4px; display: flex; align-items: center; user-select: none; -webkit-user-select: none; flex-shrink: 0; }
+.set-cat-list { min-height: 8px; }
+.dragging { background: var(--color-background-info); box-shadow: 0 4px 14px rgba(0,0,0,0.15); border-radius: var(--border-radius-md); position: relative; z-index: 5; user-select: none; -webkit-user-select: none; }
+.set-group.dragging { opacity: 0.9; }
 </style>
 </head>
 <body>
@@ -912,7 +917,8 @@ function setSettingsTab(t) { settingsTab = t; renderSettings(); }
 
 function catRowHtml(c) {
   const bg = c.color || '#EAF3DE';
-  return `<div class="set-cat-row">
+  return `<div class="set-cat-row" data-drag-item="cat" data-id="${c.id}">
+    <span class="drag-handle"><i class="ti ti-grip-vertical"></i></span>
     <div class="cat-row-icon" style="background:${bg}"><i class="ti ${c.icon}" style="font-size:15px;color:var(--color-text-primary)"></i></div>
     <div class="cat-row-name">${c.label}</div>
     <button class="icon-btn" onclick="openCatEdit('${c.id}')"><i class="ti ti-pencil"></i></button>
@@ -925,20 +931,27 @@ function renderSettings() {
   document.getElementById('set-tab-income').className = 'type-btn' + (settingsTab === 'income' ? ' active-income' : '');
   let html = '';
   if (settingsTab === 'expense') {
+    html += '<div id="groups-wrap">';
     GROUPS.forEach((g, gi) => {
-      html += `<div class="set-group-head">
-        <span class="set-group-name">${g}</span>
-        <span>
-          <button class="icon-btn" onclick="renameGroup(${gi})"><i class="ti ti-pencil"></i></button>
-          <button class="icon-btn danger" onclick="deleteGroup(${gi})"><i class="ti ti-trash"></i></button>
-        </span>
+      html += `<div class="set-group" data-drag-item="group" data-gi="${gi}">
+        <div class="set-group-head">
+          <span style="display:flex;align-items:center;gap:4px;min-width:0">
+            <span class="drag-handle"><i class="ti ti-grip-vertical"></i></span>
+            <span class="set-group-name">${g}</span>
+          </span>
+          <span>
+            <button class="icon-btn" onclick="renameGroup(${gi})"><i class="ti ti-pencil"></i></button>
+            <button class="icon-btn danger" onclick="deleteGroup(${gi})"><i class="ti ti-trash"></i></button>
+          </span>
+        </div>
+        <div class="set-cat-list">${EXPENSE_CATS.filter(c => c.group === g).map(catRowHtml).join('')}</div>
+        <button class="add-cat-btn" onclick="openCatEdit(null, ${gi})"><i class="ti ti-plus"></i> Ajouter une catégorie</button>
       </div>`;
-      EXPENSE_CATS.filter(c => c.group === g).forEach(c => { html += catRowHtml(c); });
-      html += `<button class="add-cat-btn" onclick="openCatEdit(null, ${gi})"><i class="ti ti-plus"></i> Ajouter une catégorie</button>`;
     });
+    html += '</div>';
     html += `<button class="btn-secondary" style="margin-top:20px" onclick="addGroup()"><i class="ti ti-folder-plus"></i> Ajouter un groupe</button>`;
   } else {
-    INCOME_CATS.forEach(c => { html += catRowHtml(c); });
+    html += `<div class="set-cat-list">${INCOME_CATS.map(catRowHtml).join('')}</div>`;
     html += `<button class="add-cat-btn" onclick="openCatEdit(null)"><i class="ti ti-plus"></i> Ajouter une catégorie</button>`;
   }
   document.getElementById('settings-content').innerHTML = html;
@@ -1051,6 +1064,95 @@ function resetCategories() {
   Object.values(budgets).forEach(b => Object.keys(b).forEach(k => { if (!valid.has(k)) delete b[k]; }));
   saveCategories(); save(); renderSettings(); updateDisplays();
 }
+
+  // ===== Glisser-déposer (réorganisation) =====
+let drag = null;
+
+function moveDragged(x, y) {
+  if (y < 90) window.scrollBy(0, -12);
+  else if (y > window.innerHeight - 90) window.scrollBy(0, 12);
+
+  const under = document.elementFromPoint(x, y);
+  if (!under || !drag) return;
+  const el = drag.el;
+
+  if (drag.kind === 'group') {
+    const g = under.closest('.set-group');
+    if (!g || g === el) return;
+    const r = g.getBoundingClientRect();
+    g.parentNode.insertBefore(el, y > r.top + r.height / 2 ? g.nextSibling : g);
+    return;
+  }
+
+  const row = under.closest('.set-cat-row');
+  if (row) {
+    if (row === el) return;
+    const r = row.getBoundingClientRect();
+    row.parentNode.insertBefore(el, y > r.top + r.height / 2 ? row.nextSibling : row);
+    return;
+  }
+  const grp = under.closest('.set-group');
+  if (grp) {
+    const list = grp.querySelector('.set-cat-list');
+    const lr = list.getBoundingClientRect();
+    if (y < lr.top) list.insertBefore(el, list.firstChild);
+    else list.appendChild(el);
+  }
+}
+
+function finishDrag() {
+  if (!drag) return;
+  const kind = drag.kind;
+  drag.el.classList.remove('dragging');
+  drag = null;
+
+  if (kind === 'group') {
+    const order = [...document.querySelectorAll('#settings-content .set-group')].map(g => parseInt(g.dataset.gi, 10));
+    GROUPS = order.map(i => GROUPS[i]);
+  } else if (settingsTab === 'expense') {
+    const byId = new Map(EXPENSE_CATS.map(c => [c.id, c]));
+    const next = [];
+    document.querySelectorAll('#settings-content .set-group').forEach(g => {
+      const groupName = GROUPS[parseInt(g.dataset.gi, 10)];
+      g.querySelectorAll('.set-cat-row').forEach(r => {
+        const c = byId.get(r.dataset.id);
+        if (c) { c.group = groupName; next.push(c); }
+      });
+    });
+    EXPENSE_CATS.forEach(c => { if (!next.includes(c)) next.push(c); }); // sécurité
+    EXPENSE_CATS = next;
+  } else {
+    const byId = new Map(INCOME_CATS.map(c => [c.id, c]));
+    const next = [...document.querySelectorAll('#settings-content .set-cat-row')]
+      .map(r => byId.get(r.dataset.id)).filter(Boolean);
+    INCOME_CATS.forEach(c => { if (!next.includes(c)) next.push(c); }); // sécurité
+    INCOME_CATS = next;
+  }
+  saveCategories(); renderSettings(); updateDisplays();
+}
+
+function initSettingsDrag() {
+  const root = document.getElementById('settings-content');
+  root.addEventListener('pointerdown', e => {
+    const handle = e.target.closest('.drag-handle');
+    if (!handle) return;
+    const item = handle.closest('[data-drag-item]');
+    if (!item) return;
+    e.preventDefault();
+    drag = { el: item, kind: item.dataset.dragItem, pid: e.pointerId };
+    item.classList.add('dragging');
+    root.setPointerCapture(e.pointerId);
+  });
+  root.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.pid) return;
+    e.preventDefault();
+    moveDragged(e.clientX, e.clientY);
+  });
+  const end = e => { if (drag && e.pointerId === drag.pid) finishDrag(); };
+  root.addEventListener('pointerup', end);
+  root.addEventListener('pointercancel', end);
+}
+initSettingsDrag();
 
 updateDisplays();
 setType('expense');
