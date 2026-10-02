@@ -252,7 +252,7 @@ body { background: #f0f0f0; }
   </div>
   <div class="page" id="page-settings">
   <div class="settings-top">
-    <button class="back-btn" onclick="showPage('main')"><i class="ti ti-chevron-left"></i> Retour</button>
+    <button class="back-btn" onclick="history.back()"><i class="ti ti-chevron-left"></i> Retour</button>
     <h2>Paramètres</h2>
   </div>
   <div class="section-title">Catégories</div>
@@ -265,7 +265,7 @@ body { background: #f0f0f0; }
 </div>
   <div class="page" id="page-analyse">
   <div class="settings-top">
-    <button class="back-btn" onclick="showPage('budget')"><i class="ti ti-chevron-left"></i> Retour</button>
+    <button class="back-btn" onclick="history.back()"><i class="ti ti-chevron-left"></i> Retour</button>
     <h2>Analyse</h2>
   </div>
   <div id="analyse-content"></div>
@@ -623,7 +623,7 @@ html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-
   el.innerHTML = html;
 }
 
-function showPage(name) {
+function showPage(name, fromPop) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('page-' + name).classList.add('active');
@@ -635,6 +635,13 @@ function showPage(name) {
   if (name === 'settings') renderSettings();
   if (name === 'analyse') renderAnalyse();
   if (isSub) window.scrollTo(0, 0);
+
+  // Historique : les onglets (Accueil/Budget) remplacent l'entrée, les sous-pages en ajoutent une
+  if (!fromPop && name !== currentPage) {
+    if (TAB_PAGES.includes(name) && TAB_PAGES.includes(currentPage)) history.replaceState({ page: name }, '');
+    else history.pushState({ page: name }, '');
+  }
+  currentPage = name;
 }
 // Scroll-to-hide summary
 (function() {
@@ -1229,6 +1236,59 @@ function renderAnalyse() {
 
   renderList(document.getElementById('analyse-list'), txs, true);
 }
+
+  // ===== Bouton retour du téléphone =====
+let currentPage = 'main';
+const TAB_PAGES = ['main', 'budget'];
+const OVERLAYS = ['modal', 'budget-modal', 'cat-picker', 'edit-modal', 'cat-edit-modal'];
+let overlayStack = [];   // fenêtres ouvertes, dans l'ordre d'ouverture
+let popClosing = false;  // fermeture déclenchée par le bouton retour
+let ignorePops = 0;      // retours déclenchés par le code (fermeture normale d'une fenêtre)
+
+function setupHistory() {
+  history.replaceState({ page: 'main' }, '');
+
+  // Chaque fenêtre qui s'ouvre ajoute une entrée d'historique ; à sa fermeture on la retire
+  OVERLAYS.forEach(id => {
+    const el = document.getElementById(id);
+    let wasOpen = false;
+    new MutationObserver(() => {
+      const isOpen = el.classList.contains('open');
+      if (isOpen === wasOpen) return;
+      wasOpen = isOpen;
+      if (isOpen) {
+        overlayStack.push(id);
+        history.pushState({ overlay: id }, '');
+      } else {
+        const i = overlayStack.lastIndexOf(id);
+        if (i !== -1) overlayStack.splice(i, 1);
+        if (popClosing) return;      // déjà dépilée par le bouton retour
+        ignorePops++;
+        history.back();
+      }
+    }).observe(el, { attributes: true, attributeFilter: ['class'] });
+  });
+
+  window.addEventListener('popstate', e => {
+    if (ignorePops > 0) { ignorePops--; return; }
+
+    // 1) S'il y a une fenêtre ouverte, on ferme la plus récente
+    if (overlayStack.length) {
+      popClosing = true;
+      document.getElementById(overlayStack[overlayStack.length - 1]).classList.remove('open');
+      setTimeout(() => { popClosing = false; }, 0);
+      return;
+    }
+
+    // 2) Sinon on revient à la page précédente
+    const p = e.state && e.state.page;
+    if (p && document.getElementById('page-' + p)) {
+      if (selectMode) exitSelectMode();
+      showPage(p, true);
+    }
+  });
+}
+setupHistory();
 
 updateDisplays();
 setType('expense');
