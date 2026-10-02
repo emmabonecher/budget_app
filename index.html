@@ -178,6 +178,12 @@ body { background: #f0f0f0; }
 .set-cat-list { min-height: 8px; }
 .dragging { background: var(--color-background-info); box-shadow: 0 4px 14px rgba(0,0,0,0.15); border-radius: var(--border-radius-md); position: relative; z-index: 5; user-select: none; -webkit-user-select: none; }
 .set-group.dragging { opacity: 0.9; }
+  /* ===== Analyse ===== */
+.budget-item:active { background: var(--color-background-secondary); }
+.analyse-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.analyse-head .cat-row-icon { width: 40px; height: 40px; border-radius: 10px; }
+.analyse-title { font-size: 16px; font-weight: 500; color: var(--color-text-primary); }
+.analyse-sub { font-size: 12px; color: var(--color-text-secondary); }
 </style>
 </head>
 <body>
@@ -256,6 +262,13 @@ body { background: #f0f0f0; }
   </div>
   <div id="settings-content"></div>
   <button class="btn-secondary btn-danger-secondary" style="margin-top:24px" onclick="resetCategories()">Réinitialiser les catégories par défaut</button>
+</div>
+  <div class="page" id="page-analyse">
+  <div class="settings-top">
+    <button class="back-btn" onclick="showPage('budget')"><i class="ti ti-chevron-left"></i> Retour</button>
+    <h2>Analyse</h2>
+  </div>
+  <div id="analyse-content"></div>
 </div>
 </div>
 
@@ -509,6 +522,7 @@ function updateDisplays() {
   });
   renderList(document.getElementById('all-list'), sorted, true);
   renderBudgetPage(txs);
+  renderAnalyse();
 }
 
 function paymentBadge(payment) {
@@ -580,7 +594,7 @@ function renderBudgetPage(txs) {
       } else {
         amountsHtml = spent > 0 ? fmt(spent) : '<span class="budget-no-def">non défini</span>';
       }
-      html += `<div class="budget-item">
+       html += `<div class="budget-item" style="cursor:pointer" onclick="openAnalyse('${cat.id}')">
         <div class="budget-header">
           <span class="budget-cat"><i class="ti ${cat.icon}" style="margin-right:6px;font-size:14px"></i>${cat.label}</span>
           <span class="budget-amounts">${amountsHtml}</span>
@@ -615,10 +629,12 @@ function showPage(name) {
   document.getElementById('page-' + name).classList.add('active');
   const navBtn = document.getElementById('nav-' + name);
   if (navBtn) navBtn.classList.add('active');
-  const isSettings = name === 'settings';
-  document.querySelector('.nav').style.display = isSettings ? 'none' : '';
-  document.querySelector('.fab').style.display = (name === 'budget' || isSettings) ? 'none' : 'flex';
-  if (isSettings) { renderSettings(); window.scrollTo(0, 0); }
+  const isSub = name === 'settings' || name === 'analyse';
+  document.querySelector('.nav').style.display = isSub ? 'none' : '';
+  document.querySelector('.fab').style.display = (name === 'budget' || isSub) ? 'none' : 'flex';
+  if (name === 'settings') renderSettings();
+  if (name === 'analyse') renderAnalyse();
+  if (isSub) window.scrollTo(0, 0);
 }
 // Scroll-to-hide summary
 (function() {
@@ -1153,6 +1169,66 @@ function initSettingsDrag() {
   root.addEventListener('pointercancel', end);
 }
 initSettingsDrag();
+
+  // ===== ANALYSE : dépenses d'une catégorie pour le mois affiché =====
+let analyseCatId = null;
+
+function openAnalyse(id) {
+  if (selectMode) exitSelectMode();
+  analyseCatId = id;
+  showPage('analyse');
+}
+
+function renderAnalyse() {
+  if (!analyseCatId) return;
+  const cat = getCatById(analyseCatId);
+  if (!cat) { analyseCatId = null; return; }
+
+  const txs = getMonthTx()
+    .filter(t => t.type === 'expense' && t.cat === analyseCatId)
+    .sort((a, b) => b.date !== a.date ? b.date.localeCompare(a.date) : b.id - a.id);
+  const spent = txs.reduce((s, t) => s + t.amount, 0);
+  const budget = getBudgetForCat(analyseCatId);
+
+  let budgetHtml = '';
+  if (budget !== null) {
+    const pct = budget > 0 ? Math.min(100, Math.round(spent / budget * 100)) : 100;
+    const color = budget === 0
+      ? (spent === 0 ? '#1D9E75' : '#E24B4A')
+      : (pct > 90 ? '#E24B4A' : pct > 70 ? '#EF9F27' : '#1D9E75');
+    const left = budget - spent;
+    budgetHtml = `<div class="progress-bar" style="margin:12px 0 8px"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
+      <div style="font-size:13px;color:${left >= 0 ? 'var(--color-text-secondary)' : 'var(--color-text-danger)'}">
+        ${left >= 0 ? 'Reste ' + fmt(left) : 'Dépassement de ' + fmt(-left)}
+      </div>`;
+  }
+
+  document.getElementById('analyse-content').innerHTML = `
+    <div class="analyse-head">
+      <div class="cat-row-icon" style="background:${cat.color || '#EAF3DE'}"><i class="ti ${cat.icon}" style="font-size:18px;color:var(--color-text-primary)"></i></div>
+      <div>
+        <div class="analyse-title">${cat.label}</div>
+        <div class="analyse-sub">${cat.group || ''}</div>
+      </div>
+    </div>
+    <div class="month-nav">
+      <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
+      <span class="month-label">${MONTHS[viewMonth]} ${viewYear}</span>
+      <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
+    </div>
+    <div class="balance-card" style="text-align:left">
+      <div class="balance-label">Dépensé ce mois-ci</div>
+      <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
+        <span class="balance-amount" style="font-size:26px">${fmt(spent)}</span>
+        ${budget !== null ? `<span style="font-size:14px;color:var(--color-text-secondary)">/ ${fmtInt(budget)}</span>` : ''}
+      </div>
+      ${budgetHtml}
+    </div>
+    <div class="section-title">${txs.length} transaction${txs.length > 1 ? 's' : ''}</div>
+    <div class="transaction-list" id="analyse-list"></div>`;
+
+  renderList(document.getElementById('analyse-list'), txs, true);
+}
 
 updateDisplays();
 setType('expense');
