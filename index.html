@@ -62,15 +62,13 @@ body { background: #f0f0f0; }
 .tx-meta { font-size: 12px; color: var(--color-text-secondary); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .tx-payment-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; padding: 1px 6px; border-radius: 20px; flex-shrink: 0; }
 .tx-payment-badge.card { background: #E6F1FB; color: #185FA5; }
-.support-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 14px; margin-bottom: 8px; }
-.support-card-top { display: flex; align-items: center; gap: 12px; }
-.support-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; color: var(--color-text-primary); }
-.support-balance { font-size: 17px; font-weight: 500; flex-shrink: 0; }
-.support-balance.positive { color: var(--color-text-success); }
-.support-balance.negative { color: var(--color-text-danger); }
-.support-month { margin-top: 8px; padding-left: 44px; font-size: 12px; color: var(--color-text-secondary); }
-.support-month .pos { color: var(--color-text-success); }
-.support-month .neg { color: var(--color-text-danger); }
+.dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+.dash-tile { background: var(--color-background-secondary); border-radius: var(--border-radius-lg); padding: 14px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.dash-tile-icon { width: 36px; height: 36px; border-radius: 10px; background: #E6F1FB; display: flex; align-items: center; justify-content: center; font-size: 18px; color: var(--color-text-primary); }
+.dash-tile-name { font-size: 13px; color: var(--color-text-secondary); overflow-wrap: anywhere; }
+.dash-tile-balance { font-size: 20px; font-weight: 500; overflow-wrap: anywhere; }
+.dash-tile-balance.positive { color: var(--color-text-success); }
+.dash-tile-balance.negative { color: var(--color-text-danger); }
 .tx-amount { font-size: 15px; font-weight: 500; flex-shrink: 0; }
 .tx-amount.pos { color: var(--color-text-success); }
 .tx-amount.neg { color: var(--color-text-danger); }
@@ -86,6 +84,8 @@ body { background: #f0f0f0; }
 .type-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 14px; }
 .type-btn { padding: 10px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: none; color: var(--color-text-secondary); font-size: 14px; cursor: pointer; }
 .type-btn.active-income { background: var(--color-background-success); color: var(--color-text-success); border-color: var(--color-border-success); }
+.type-toggle.three { grid-template-columns: 1fr 1fr 1fr; }
+.type-btn.active-transfer { background: var(--color-background-info); color: var(--color-text-info); border-color: #B5D4F4; }
 .type-btn.active-expense { background: var(--color-background-danger); color: var(--color-text-danger); border-color: var(--color-border-danger); }
 .btn-primary { width: 100%; padding: 14px; background: #378ADD; color: white; border: none; border-radius: var(--border-radius-md); font-size: 15px; font-weight: 500; cursor: pointer; margin-top: 8px; }
 .btn-secondary { width: 100%; padding: 12px; background: none; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); font-size: 14px; color: var(--color-text-secondary); cursor: pointer; margin-top: 8px; }
@@ -201,8 +201,8 @@ body { background: #f0f0f0; }
 </div>
   <div class="nav">
     <button class="nav-btn active" onclick="showPage('main')" id="nav-main"><i class="ti ti-home"></i>Accueil</button>
+    <button class="nav-btn" onclick="showPage('dashboard')" id="nav-dashboard"><i class="ti ti-layout-dashboard"></i>Soldes</button>
     <button class="nav-btn" onclick="showPage('budget')" id="nav-budget"><i class="ti ti-chart-bar"></i>Budget</button>
-    <button class="nav-btn" onclick="showPage('supports')" id="nav-supports"><i class="ti ti-wallet"></i>Supports</button>
   </div>
 
   <div class="page active" id="page-main">
@@ -250,24 +250,15 @@ body { background: #f0f0f0; }
     </div>
     <div id="budget-page-content"></div>
   </div>
-  <div class="page" id="page-supports">
-    <div class="month-nav">
-      <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
-      <span class="month-label" id="month-display4"></span>
-      <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
-    </div>
-    <div id="supports-page-content" style="padding-bottom:72px"></div>
+  <div class="page" id="page-dashboard">
+    <div id="dashboard-content" style="padding-bottom:72px"></div>
   </div>
   <div class="page" id="page-settings">
   <div class="settings-top">
     <button class="back-btn" onclick="history.back()"><i class="ti ti-chevron-left"></i> Retour</button>
     <h2>Paramètres</h2>
   </div>
-  <div class="section-title">Catégories</div>
-  <div class="type-toggle">
-    <button class="type-btn active-expense" id="set-tab-expense" onclick="setSettingsTab('expense')">Dépenses</button>
-    <button class="type-btn" id="set-tab-income" onclick="setSettingsTab('income')">Recettes</button>
-  </div>
+  <div class="section-title">Catégories de dépenses</div>
   <div id="settings-content"></div>
   <button class="btn-secondary btn-danger-secondary" style="margin-top:24px" onclick="resetCategories()">Réinitialiser les catégories par défaut</button>
 
@@ -298,11 +289,12 @@ body { background: #f0f0f0; }
   <div class="modal">
     <button class="modal-close" onclick="closeModal()"><i class="ti ti-x"></i></button>
     <h2>Nouvelle transaction</h2>
-    <div class="type-toggle">
+    <div class="type-toggle three">
       <button class="type-btn active-expense" id="btn-expense" onclick="setType('expense')"><i class="ti ti-arrow-up"></i> Dépense</button>
       <button class="type-btn" id="btn-income" onclick="setType('income')"><i class="ti ti-arrow-down"></i> Recette</button>
+      <button class="type-btn" id="btn-transfer" onclick="setType('transfer')"><i class="ti ti-arrows-exchange"></i> Transfert</button>
     </div>
-    <div class="form-group">
+    <div class="form-group" id="grp-desc">
       <label>Description</label>
       <input type="text" id="tx-desc" placeholder="Ex : Courses, Loyer..." />
     </div>
@@ -310,7 +302,7 @@ body { background: #f0f0f0; }
       <label>Montant (€)</label>
       <input type="number" id="tx-amount" placeholder="0,00" min="0" step="0.01" />
     </div>
-    <div class="form-group">
+    <div class="form-group" id="grp-cat">
       <label>Catégorie</label>
       <div class="selected-cat-display" onclick="openCatPicker()">
         <span id="selected-cat-label" style="color:var(--color-text-secondary)">Choisir une catégorie</span>
@@ -318,8 +310,12 @@ body { background: #f0f0f0; }
       </div>
     </div>
     <div class="form-group">
-      <label>Support</label>
+      <label id="lbl-support">Support</label>
       <select id="tx-support"></select>
+    </div>
+    <div class="form-group" id="grp-support-to" style="display:none">
+      <label>Support cible</label>
+      <select id="tx-support-to"></select>
     </div>
     <div class="form-group">
       <label>Date</label>
@@ -361,11 +357,12 @@ body { background: #f0f0f0; }
   <div class="modal">
     <button class="modal-close" onclick="closeEditModal()"><i class="ti ti-x"></i></button>
     <h2>Modifier la transaction</h2>
-    <div class="type-toggle">
+    <div class="type-toggle three">
       <button class="type-btn active-expense" id="edit-btn-expense" onclick="setEditType('expense')"><i class="ti ti-arrow-up"></i> Dépense</button>
       <button class="type-btn" id="edit-btn-income" onclick="setEditType('income')"><i class="ti ti-arrow-down"></i> Recette</button>
+      <button class="type-btn" id="edit-btn-transfer" onclick="setEditType('transfer')"><i class="ti ti-arrows-exchange"></i> Transfert</button>
     </div>
-    <div class="form-group">
+    <div class="form-group" id="edit-grp-desc">
       <label>Description</label>
       <input type="text" id="edit-tx-desc" placeholder="Ex : Courses, Loyer..." />
     </div>
@@ -373,7 +370,7 @@ body { background: #f0f0f0; }
       <label>Montant (€)</label>
       <input type="number" id="edit-tx-amount" placeholder="0,00" min="0" step="0.01" />
     </div>
-    <div class="form-group">
+    <div class="form-group" id="edit-grp-cat">
       <label>Catégorie</label>
       <div class="selected-cat-display" onclick="openEditCatPicker()">
         <span id="edit-selected-cat-label" style="color:var(--color-text-secondary)">Choisir une catégorie</span>
@@ -381,8 +378,12 @@ body { background: #f0f0f0; }
       </div>
     </div>
     <div class="form-group">
-      <label>Support</label>
+      <label id="edit-lbl-support">Support</label>
       <select id="edit-tx-support"></select>
+    </div>
+    <div class="form-group" id="edit-grp-support-to" style="display:none">
+      <label>Support cible</label>
+      <select id="edit-tx-support-to"></select>
     </div>
     <div class="form-group">
       <label>Date</label>
@@ -551,6 +552,11 @@ function migrateTxList(list, supports) {
   const first = supports[0].id;
   let changed = false;
   list.forEach(t => {
+    if (t.type === 'transfer') {
+      if (!valid.has(t.from)) { t.from = first; changed = true; }
+      if (!valid.has(t.to)) { t.to = first; changed = true; }
+      return;
+    }
     if (!t.support || !valid.has(t.support)) {
       const target = t.payment === 'cash' ? 'sup-cash' : 'sup-card';
       t.support = valid.has(target) ? target : first;
@@ -567,11 +573,25 @@ function esc(v) {
   return String(v == null ? '' : v).replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
 }
 function getSupportById(id) { return SUPPORTS.find(sp => sp.id === id) || null; }
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+// Solde à l'instant présent : solde de départ + mouvements datés d'aujourd'hui ou avant
 function supportBalance(id) {
   const sp = getSupportById(id);
   let b = sp ? (Number(sp.initial) || 0) : 0;
-  transactions.forEach(t => { if (t.support === id) b += t.type === 'income' ? t.amount : -t.amount; });
+  const today = todayStr();
+  transactions.forEach(t => {
+    if (t.date > today) return;
+    if (t.type === 'transfer') { if (t.from === id) b -= t.amount; if (t.to === id) b += t.amount; }
+    else if (t.support === id) b += t.type === 'income' ? t.amount : -t.amount;
+  });
   return Math.round(b * 100) / 100 + 0;
+}
+function defaultToSupport(fromId) {
+  const other = SUPPORTS.find(sp => sp.id !== fromId);
+  return other ? other.id : fromId;
 }
 function fillSupportSelect(selectId, selected) {
   const el = document.getElementById(selectId);
@@ -589,7 +609,7 @@ function prevMonthKey(y,m) { let pm=m-1,py=y; if(pm<0){pm=11;py--;} return month
 
 function updateDisplays() {
   const label = MONTHS[viewMonth]+' '+viewYear;
-  ['month-display','month-display3','month-display4'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=label;});
+  ['month-display','month-display3'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=label;});
   document.getElementById('header-month').textContent = label;
   const txs = getMonthTx();
   const income = txs.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
@@ -607,7 +627,7 @@ function updateDisplays() {
   });
   renderList(document.getElementById('all-list'), sorted, true);
   renderBudgetPage(txs);
-  renderSupportsPage();
+  renderDashboard();
   renderAnalyse();
 }
 
@@ -620,8 +640,18 @@ function supportBadge(id) {
 function renderList(el, txs, withActions) {
   if (!txs.length) { el.innerHTML='<div class="empty-state"><i class="ti ti-receipt" style="font-size:32px;display:block;margin-bottom:8px"></i>Aucune transaction</div>'; return; }
   el.innerHTML = txs.map(t => {
-    const cat=getCatById(t.cat), icon=cat?cat.icon:'ti-box', bg=cat?cat.color:'#F1EFE8';
-    const catLabel=cat?(cat.group?cat.group+' · '+cat.label:cat.label):'Catégorie supprimée';
+    const cat=getCatById(t.cat);
+    let icon=cat?cat.icon:'ti-box', bg=cat?cat.color:'#F1EFE8';
+    let catLabel=cat?(cat.group?cat.group+' · '+cat.label:cat.label):'Catégorie supprimée';
+    let name=esc(t.desc), badges=supportBadge(t.support), amountHtml;
+    if (t.type==='transfer') {
+      icon='ti-arrows-exchange'; bg='#E6F1FB'; catLabel=''; name='Transfert';
+      badges=supportBadge(t.from)+' <i class="ti ti-arrow-right" style="font-size:11px"></i> '+supportBadge(t.to);
+      amountHtml=`<div class="tx-amount" style="color:var(--color-text-info)">${fmt(t.amount)}</div>`;
+    } else {
+      if (t.type==='income' && !cat) { icon='ti-arrow-down'; bg='#EAF3DE'; catLabel='Recette'; }
+      amountHtml=`<div class="tx-amount ${t.type==='income'?'pos':'neg'}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>`;
+    }
     const isSelected = selectedIds.has(t.id);
     const checkbox = withActions && selectMode ? `<div class="tx-checkbox">${isSelected?'<i class="ti ti-check" style="font-size:12px;color:white"></i>':''}</div>` : '';
     const clickHandler = withActions
@@ -631,10 +661,10 @@ function renderList(el, txs, withActions) {
       ${checkbox}
       <div class="tx-icon" style="background:${bg}"><i class="ti ${icon}" style="font-size:16px;color:var(--color-text-primary)"></i></div>
       <div class="tx-info">
-        <div class="tx-name">${esc(t.desc)}</div>
-        <div class="tx-meta">${catLabel} ${supportBadge(t.support)} <span style="font-size:11px;color:var(--color-text-tertiary)">· ${t.date.split('-').reverse().join('/')}</span></div>
+        <div class="tx-name">${name}</div>
+        <div class="tx-meta">${catLabel} ${badges} <span style="font-size:11px;color:var(--color-text-tertiary)">· ${t.date.split('-').reverse().join('/')}</span></div>
       </div>
-      <div class="tx-amount ${t.type==='income'?'pos':'neg'}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
+      ${amountHtml}
     </div>`;
   }).join('');
 }
@@ -703,6 +733,7 @@ function showPage(name, fromPop) {
   document.querySelector('.fab').style.display = (name === 'budget' || isSub) ? 'none' : 'flex';
   if (name === 'settings') renderSettings();
   if (name === 'analyse') renderAnalyse();
+  if (name === 'dashboard') renderDashboard();
   if (isSub) window.scrollTo(0, 0);
 
   // Historique : les onglets (Accueil/Budget) remplacent l'entrée, les sous-pages en ajoutent une
@@ -738,9 +769,10 @@ function changeMonth(dir) {
 function openModal() {
   selectedCatId=null;
   fillSupportSelect('tx-support', lastSupportId);
+  fillSupportSelect('tx-support-to', defaultToSupport(document.getElementById('tx-support').value));
   document.getElementById('selected-cat-label').textContent='Choisir une catégorie';
   document.getElementById('selected-cat-label').style.color='var(--color-text-secondary)';
-  document.getElementById('tx-date').value=new Date().toISOString().split('T')[0];
+  document.getElementById('tx-date').value=todayStr();
   document.getElementById('tx-desc').value='';
   document.getElementById('tx-amount').value='';
   setType('expense');
@@ -752,8 +784,18 @@ function setType(type) {
   txType=type; selectedCatId=null;
   document.getElementById('selected-cat-label').textContent='Choisir une catégorie';
   document.getElementById('selected-cat-label').style.color='var(--color-text-secondary)';
-  document.getElementById('btn-expense').className='type-btn'+(type==='expense'?' active-expense':'');
-  document.getElementById('btn-income').className='type-btn'+(type==='income'?' active-income':'');
+  applyTypeUI('', type);
+}
+// Affiche les champs utiles selon le type : dépense (catégorie), recette (rien de plus), transfert (support cible)
+function applyTypeUI(p, type) {
+  const q = id => document.getElementById(p + id);
+  q('btn-expense').className = 'type-btn' + (type==='expense' ? ' active-expense' : '');
+  q('btn-income').className = 'type-btn' + (type==='income' ? ' active-income' : '');
+  q('btn-transfer').className = 'type-btn' + (type==='transfer' ? ' active-transfer' : '');
+  q('grp-desc').style.display = type==='transfer' ? 'none' : 'block';
+  q('grp-cat').style.display = type==='expense' ? 'block' : 'none';
+  q('grp-support-to').style.display = type==='transfer' ? 'block' : 'none';
+  q('lbl-support').textContent = type==='transfer' ? 'Support de départ' : 'Support';
 }
 
 function openCatPicker() {
@@ -790,14 +832,24 @@ function selectCat(id) {
 }
 
 function addTransaction() {
-  const desc=document.getElementById('tx-desc').value.trim();
   const amount=parseFloat(document.getElementById('tx-amount').value);
   const date=document.getElementById('tx-date').value;
-  if(!desc||!amount||amount<=0||!date){alert('Veuillez remplir tous les champs.');return;}
-  if(!selectedCatId){alert('Veuillez choisir une catégorie.');return;}
   const support=document.getElementById('tx-support').value;
-  const tx={id:Date.now(),type:txType,desc,amount,cat:selectedCatId,date,support};
-  lastSupportId=support;
+  let tx;
+  if (txType==='transfer') {
+    const to=document.getElementById('tx-support-to').value;
+    if(!amount||amount<=0||!date){alert('Veuillez remplir tous les champs.');return;}
+    if(SUPPORTS.length<2){alert('Il faut au moins deux supports pour faire un transfert.');return;}
+    if(support===to){alert('Le support de départ et le support cible doivent être différents.');return;}
+    tx={id:Date.now(),type:'transfer',desc:'',amount,date,from:support,to};
+  } else {
+    const desc=document.getElementById('tx-desc').value.trim();
+    if(!desc||!amount||amount<=0||!date){alert('Veuillez remplir tous les champs.');return;}
+    if(txType==='expense'&&!selectedCatId){alert('Veuillez choisir une catégorie.');return;}
+    tx={id:Date.now(),type:txType,desc,amount,date,support};
+    if(txType==='expense') tx.cat=selectedCatId;
+    lastSupportId=support;
+  }
   transactions.push(tx); save(); closeModal(); updateDisplays();
 }
 
@@ -913,23 +965,30 @@ function startEditTransaction() {
   if (!t) return;
   editTxId = t.id;
   editTxType = t.type;
-  editSelectedCatId = t.cat;
-  document.getElementById('edit-tx-desc').value = t.desc;
+  editSelectedCatId = t.type==='expense' ? (t.cat || null) : null;
+  document.getElementById('edit-tx-desc').value = t.desc || '';
   document.getElementById('edit-tx-amount').value = t.amount;
   document.getElementById('edit-tx-date').value = t.date;
-  setEditType(t.type);
-  fillSupportSelect('edit-tx-support', t.support);
-  const cat = getCatById(t.cat);
-  const lbl = cat ? (cat.group ? cat.group+' · '+cat.label : cat.label) : t.cat;
+  const from = t.type==='transfer' ? t.from : t.support;
+  fillSupportSelect('edit-tx-support', from);
+  fillSupportSelect('edit-tx-support-to', t.type==='transfer' ? t.to : defaultToSupport(from));
+  const cat = getCatById(editSelectedCatId);
   const el = document.getElementById('edit-selected-cat-label');
-  el.textContent = lbl; el.style.color = 'var(--color-text-primary)';
+  if (cat) { el.textContent = cat.group ? cat.group+' · '+cat.label : cat.label; el.style.color = 'var(--color-text-primary)'; }
+  else { el.textContent = 'Choisir une catégorie'; el.style.color = 'var(--color-text-secondary)'; }
+  applyTypeUI('edit-', t.type);
   document.getElementById('edit-modal').classList.add('open');
 }
 function closeEditModal() { document.getElementById('edit-modal').classList.remove('open'); }
 function setEditType(type) {
   editTxType = type;
-  document.getElementById('edit-btn-expense').className = 'type-btn'+(type==='expense'?' active-expense':'');
-  document.getElementById('edit-btn-income').className = 'type-btn'+(type==='income'?' active-income':'');
+  // Une catégorie de dépense n'a de sens que pour une dépense
+  if (type !== 'expense' || !EXPENSE_CATS.some(c => c.id === editSelectedCatId)) {
+    editSelectedCatId = null;
+    const el = document.getElementById('edit-selected-cat-label');
+    el.textContent = 'Choisir une catégorie'; el.style.color = 'var(--color-text-secondary)';
+  }
+  applyTypeUI('edit-', type);
 }
 function openEditCatPicker() {
   const el = document.getElementById('cat-picker-content');
@@ -963,15 +1022,28 @@ function selectEditCat(id) {
   closeCatPicker();
 }
 function saveEditTransaction() {
-  const desc = document.getElementById('edit-tx-desc').value.trim();
   const amount = parseFloat(document.getElementById('edit-tx-amount').value);
   const date = document.getElementById('edit-tx-date').value;
-  if (!desc||!amount||amount<=0||!date) { alert('Veuillez remplir tous les champs.'); return; }
-  if (!editSelectedCatId) { alert('Veuillez choisir une catégorie.'); return; }
+  const support = document.getElementById('edit-tx-support').value;
   const idx = transactions.findIndex(t=>t.id===editTxId);
   if (idx === -1) return;
-  transactions[idx] = { ...transactions[idx], type: editTxType, desc, amount, cat: editSelectedCatId, date,
-    support: document.getElementById('edit-tx-support').value };
+  const old = transactions[idx];
+  let nt;
+  if (editTxType === 'transfer') {
+    const to = document.getElementById('edit-tx-support-to').value;
+    if (!amount||amount<=0||!date) { alert('Veuillez remplir tous les champs.'); return; }
+    if (SUPPORTS.length < 2) { alert('Il faut au moins deux supports pour faire un transfert.'); return; }
+    if (support === to) { alert('Le support de départ et le support cible doivent être différents.'); return; }
+    nt = { id: old.id, type: 'transfer', desc: '', amount, date, from: support, to };
+  } else {
+    const desc = document.getElementById('edit-tx-desc').value.trim();
+    if (!desc||!amount||amount<=0||!date) { alert('Veuillez remplir tous les champs.'); return; }
+    if (editTxType === 'expense' && !editSelectedCatId) { alert('Veuillez choisir une catégorie.'); return; }
+    nt = { id: old.id, type: editTxType, desc, amount, date, support };
+    if (editTxType === 'expense') nt.cat = editSelectedCatId;
+    else if (old.type === 'income' && old.cat) nt.cat = old.cat;   // on garde l'ancienne catégorie d'une recette existante
+  }
+  transactions[idx] = nt;
   save(); closeEditModal(); updateDisplays();
 }
 
@@ -992,7 +1064,6 @@ let catEditId = null, catEditIcon = 'ti-box', catEditColor = COLOR_PALETTE[0];
 
 function cleanName(s) { return (s || '').replace(/[<>]/g, '').trim(); }
 
-function setSettingsTab(t) { settingsTab = t; renderSettings(); }
 
 function catRowHtml(c) {
   const bg = c.color || '#EAF3DE';
@@ -1006,8 +1077,6 @@ function catRowHtml(c) {
 }
 
 function renderSettings() {
-  document.getElementById('set-tab-expense').className = 'type-btn' + (settingsTab === 'expense' ? ' active-expense' : '');
-  document.getElementById('set-tab-income').className = 'type-btn' + (settingsTab === 'income' ? ' active-income' : '');
   let html = '';
   if (settingsTab === 'expense') {
     html += '<div id="groups-wrap">';
@@ -1190,45 +1259,42 @@ function deleteSupport(id) {
   const sp = getSupportById(id);
   if (!sp) return;
   if (SUPPORTS.length <= 1) { alert('Il faut conserver au moins un support.'); return; }
-  const used = transactions.filter(t => t.support === id).length;
   const target = SUPPORTS.find(x => x.id !== id);
-  const msg = used
-    ? used + ' transaction(s) utilisent « ' + sp.label + ' ». Elles seront déplacées vers « ' + target.label + ' ». Supprimer quand même ?'
+  const touches = t => t.type === 'transfer' ? (t.from === id || t.to === id) : t.support === id;
+  const moved = transactions.filter(touches).length;
+  // Un transfert entre le support supprimé et le support de repli n'aurait plus de sens
+  const pointless = new Set(transactions.filter(t => t.type === 'transfer'
+    && (t.from === id ? target.id : t.from) === (t.to === id ? target.id : t.to)).map(t => t.id));
+  let msg = moved
+    ? moved + ' transaction(s) utilisent « ' + sp.label + ' ». Elles seront déplacées vers « ' + target.label + ' ».'
     : 'Supprimer le support « ' + sp.label + ' » ?';
+  if (pointless.size) msg += '\n' + pointless.size + ' transfert(s) entre ces deux supports seront supprimés (ils n\'auraient plus de sens).';
+  if (moved) msg += ' Supprimer quand même ?';
   if (!confirm(msg)) return;
-  transactions.forEach(t => { if (t.support === id) t.support = target.id; });
+  transactions.forEach(t => {
+    if (t.type === 'transfer') { if (t.from === id) t.from = target.id; if (t.to === id) t.to = target.id; }
+    else if (t.support === id) t.support = target.id;
+  });
+  transactions = transactions.filter(t => !pointless.has(t.id));
   SUPPORTS = SUPPORTS.filter(x => x.id !== id);
   if (lastSupportId === id) lastSupportId = null;
   saveSupports(); save(); renderSupportsSettings(); updateDisplays();
 }
 
-// ===== SUPPORTS : page "état des supports" =====
-function renderSupportsPage() {
-  const el = document.getElementById('supports-page-content');
+// ===== TABLEAU DE BORD : solde actuel de chaque support =====
+function renderDashboard() {
+  const el = document.getElementById('dashboard-content');
   if (!el) return;
-  const monthTxs = getMonthTx();
-  let total = 0;
-  const cards = SUPPORTS.map(sp => {
+  const tiles = SUPPORTS.map(sp => {
     const bal = supportBalance(sp.id);
-    total += bal;
-    const inc = monthTxs.filter(t => t.support === sp.id && t.type === 'income').reduce((a, t) => a + t.amount, 0);
-    const exp = monthTxs.filter(t => t.support === sp.id && t.type === 'expense').reduce((a, t) => a + t.amount, 0);
-    return `<div class="support-card">
-      <div class="support-card-top">
-        <div class="cat-row-icon" style="background:#E6F1FB"><i class="ti ${esc(sp.icon)}" style="font-size:16px;color:var(--color-text-primary)"></i></div>
-        <div class="support-name">${esc(sp.label)}</div>
-        <div class="support-balance ${bal >= 0 ? 'positive' : 'negative'}">${fmt(bal)}</div>
-      </div>
-      <div class="support-month">Ce mois-ci : <span class="pos">${inc > 0 ? '+' : ''}${fmt(inc)}</span> · <span class="neg">${exp > 0 ? '-' : ''}${fmt(exp)}</span></div>
+    return `<div class="dash-tile">
+      <div class="dash-tile-icon"><i class="ti ${esc(sp.icon)}"></i></div>
+      <div class="dash-tile-name">${esc(sp.label)}</div>
+      <div class="dash-tile-balance ${bal >= 0 ? 'positive' : 'negative'}">${fmt(bal)}</div>
     </div>`;
   }).join('');
-  total = Math.round(total * 100) / 100 + 0;
-  el.innerHTML = `<div class="balance-card">
-      <div class="balance-label">Total de tous les supports</div>
-      <div class="balance-amount ${total >= 0 ? 'positive' : 'negative'}">${fmt(total)}</div>
-    </div>
-    <div class="section-title">Solde actuel par support</div>
-    ${cards}
+  el.innerHTML = `<div class="section-title">Soldes au ${todayStr().split('-').reverse().join('/')}</div>
+    <div class="dash-grid">${tiles}</div>
     <button class="btn-secondary" onclick="showPage('settings')"><i class="ti ti-settings" style="margin-right:6px"></i>Gérer les supports</button>`;
 }
 
@@ -1236,7 +1302,7 @@ function renderSupportsPage() {
 function exportData() {
   const payload = {
     app: 'mon-budget',
-    version: 2,
+    version: 3,
     exportedAt: new Date().toISOString(),
     transactions: transactions,
     budgets: budgets,
@@ -1264,9 +1330,12 @@ function downloadFile(file) {
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
 function validTx(t) {
-  return !!t && typeof t === 'object' && Number.isFinite(t.id) && (t.type === 'income' || t.type === 'expense')
-    && typeof t.desc === 'string' && Number.isFinite(t.amount) && typeof t.cat === 'string'
-    && /^\d{4}-\d{2}-\d{2}$/.test(t.date || '');
+  if (!t || typeof t !== 'object' || !Number.isFinite(t.id) || !Number.isFinite(t.amount)
+      || !/^\d{4}-\d{2}-\d{2}$/.test(t.date || '')) return false;
+  if (t.type === 'transfer') return typeof t.from === 'string' && typeof t.to === 'string';
+  if (t.type !== 'income' && t.type !== 'expense') return false;
+  if (typeof t.desc !== 'string') return false;
+  return t.type === 'income' ? (t.cat == null || typeof t.cat === 'string') : typeof t.cat === 'string';
 }
 function validCat(x) {
   return !!x && /^[\w-]+$/.test(String(x.id)) && typeof x.label === 'string' && !/[<>]/.test(x.label)
@@ -1467,7 +1536,7 @@ function renderAnalyse() {
 
   // ===== Bouton retour du téléphone =====
 let currentPage = 'main';
-const TAB_PAGES = ['main', 'budget', 'supports'];
+const TAB_PAGES = ['main', 'dashboard', 'budget'];
 const OVERLAYS = ['modal', 'budget-modal', 'cat-picker', 'edit-modal', 'cat-edit-modal', 'support-edit-modal'];
 let overlayStack = [];   // fenêtres ouvertes, dans l'ordre d'ouverture
 let popClosing = false;  // fermeture déclenchée par le bouton retour
