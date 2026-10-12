@@ -208,18 +208,10 @@ body { background: #f0f0f0; }
   <div class="page active" id="page-main">
     <!-- Sticky summary header (will hide on scroll) -->
     <div class="summary-sticky" id="summary-sticky">
-      <div class="month-nav" style="margin-bottom:12px">
+      <div class="month-nav" style="margin-bottom:0">
         <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
         <span class="month-label" id="month-display"></span>
         <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
-      </div>
-      <div class="balance-card" style="margin-bottom:10px">
-        <div class="balance-label">Solde du mois</div>
-        <div class="balance-amount" id="balance-display">0,00 €</div>
-      </div>
-      <div class="stats-grid" style="margin-bottom:0">
-        <div class="stat-card"><div class="stat-label"><i class="ti ti-arrow-down"></i> Recettes</div><div class="stat-value income" id="income-display">0,00 €</div></div>
-        <div class="stat-card"><div class="stat-label"><i class="ti ti-arrow-up"></i> Dépenses</div><div class="stat-value expense" id="expense-display">0,00 €</div></div>
       </div>
     </div>
     <!-- Transactions list (scrollable) -->
@@ -612,14 +604,6 @@ function updateDisplays() {
   ['month-display','month-display3'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=label;});
   document.getElementById('header-month').textContent = label;
   const txs = getMonthTx();
-  const income = txs.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
-  const expense = txs.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
-  const balance = income - expense;
-  document.getElementById('income-display').textContent = fmt(income);
-  document.getElementById('expense-display').textContent = fmt(expense);
-  const bd = document.getElementById('balance-display');
-  bd.textContent = (balance>=0?'+':'')+fmt(balance);
-  bd.className = 'balance-amount '+(balance>=0?'positive':'negative');
   // Sort by date desc, then by insertion order desc (id is timestamp)
   const sorted = [...txs].sort((a,b) => {
     if (b.date !== a.date) return b.date.localeCompare(a.date);
