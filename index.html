@@ -453,10 +453,11 @@ body { background: #f0f0f0; }
     <div class="form-group">
       <label>Solde de départ (€)</label>
       <input type="number" id="support-edit-initial" step="0.01" placeholder="0,00" />
+      <p id="support-edit-initial-note" style="display:none;font-size:12px;color:var(--color-text-secondary);margin-top:6px;line-height:1.4">Calculé : total des montants de départ des poches.</p>
     </div>
     <div class="form-group">
       <label>Poches (facultatif)</label>
-      <p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:8px;line-height:1.4">Divisez ce support en poches. Le solde du support reste le total ; touchez le support dans « Soldes » pour voir le détail. Le montant de départ de chaque poche est facultatif : ce qui n'est pas réparti apparaît en « Non affecté ».</p>
+      <p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:8px;line-height:1.4">Divisez ce support en poches. Son solde est alors toujours le total de ses poches, et son solde de départ se calcule à partir du départ de chaque poche. Touchez le support dans « Soldes » pour voir le détail.</p>
       <div id="support-edit-pockets"></div>
       <button type="button" class="add-cat-btn" onclick="addPocketRow()"><i class="ti ti-plus"></i> Ajouter une poche</button>
     </div>
@@ -570,6 +571,10 @@ function normalizePockets(arr) {
   return out;
 }
 
+// Total des montants de départ d'une liste de poches
+function pocketsTotal(list) {
+  return Math.round(list.reduce((s, e) => s + (Number(e.initial) || 0), 0) * 100) / 100;
+}
 function normalizeSupports(arr) {
   if (!Array.isArray(arr)) return null;
   const out = [], seen = new Set();
@@ -582,7 +587,9 @@ function normalizeSupports(arr) {
     const icon = /^ti-[\w-]+$/.test(String(sp.icon || '')) ? sp.icon : 'ti-wallet';
     const initial = Number.isFinite(Number(sp.initial)) ? Math.round(Number(sp.initial) * 100) / 100 : 0;
     // Anciennes données : les poches s'appelaient « envelopes »
-    seen.add(id); out.push({ id, label, icon, initial, pockets: normalizePockets(sp.pockets !== undefined ? sp.pockets : sp.envelopes) });
+    const pockets = normalizePockets(sp.pockets !== undefined ? sp.pockets : sp.envelopes);
+    // Un support qui a des poches a pour solde de départ le total de ses poches (pas de montant à part)
+    seen.add(id); out.push({ id, label, icon, initial: pockets.length ? pocketsTotal(pockets) : initial, pockets });
   }
   return out.length ? out : null;
 }
@@ -596,6 +603,8 @@ function loadSupports() {
     SUPPORTS = saved;
     // Ancien format (« envelopes ») : on réécrit tout de suite au nouveau format
     if (Array.isArray(raw) && raw.some(sp => sp && 'envelopes' in sp)) saveSupports();
+    // Solde de départ relevé pour couvrir les poches : on l'enregistre aussi
+    else if (Array.isArray(raw) && raw.some((sp, i) => (Number(sp.initial) || 0) !== saved[i].initial)) saveSupports();
   }
   else { SUPPORTS = DEFAULT_SUPPORTS.map(sp => ({ ...sp })); saveSupports(); }
 }
@@ -679,22 +688,24 @@ function fillSupportSelect(selectId, selected) {
   el.innerHTML = SUPPORTS.map(sp => `<option value="${esc(sp.id)}">${esc(sp.label)}</option>`).join('');
   el.value = getSupportById(selected) ? selected : SUPPORTS[0].id;
 }
-// Liste des poches d'un support dans un <select> ("" = sans poche).
-// selected : id de poche, '' pour « sans poche », null/undefined pour le choix par défaut.
+// Liste des poches d'un support dans un <select>. Un support qui a des poches impose d'en choisir une :
+// « Sans poche » n'est proposé que pour une ancienne transaction qui n'en avait pas.
+// selected : id de poche, '' pour une transaction sans poche, null/undefined pour le choix par défaut.
 function fillPocketSelect(selectId, supportId, selected) {
   const sel = document.getElementById(selectId);
   const pockets = pocketsOf(getSupportById(supportId));
+  const allowNone = selected === '' && pockets.length > 0;
   sel.innerHTML = pockets.map(e => `<option value="${esc(e.id)}">${esc(e.label)}</option>`).join('')
-    + '<option value="">Sans poche</option>';
+    + (allowNone ? '<option value="">Sans poche</option>' : '');
   let v = selected;
   if (v == null) v = lastPocketBySupport[supportId];
-  if (v == null || (v !== '' && !pockets.some(e => e.id === v))) v = pockets.length ? pockets[0].id : '';
+  if (v == null || (v === '' ? !allowNone : !pockets.some(e => e.id === v))) v = pockets.length ? pockets[0].id : '';
   sel.value = v;
 }
 // Les listes de poches n'apparaissent que si le support choisi en a
 function updatePocketVisibility(p) {
   const type = p ? editTxType : txType;
-  const has = id => document.getElementById(id).options.length > 1;
+  const has = id => document.getElementById(id).options.length > 0;
   document.getElementById(p + 'grp-pocket').style.display = has(p + 'tx-pocket') ? 'block' : 'none';
   document.getElementById(p + 'grp-pocket-to').style.display = (type === 'transfer' && has(p + 'tx-pocket-to')) ? 'block' : 'none';
 }
@@ -706,7 +717,7 @@ function onSupportPick(p, side) {
 }
 function readPocket(selectId) {
   const sel = document.getElementById(selectId);
-  return sel.options.length > 1 ? sel.value : '';
+  return sel.options.length > 0 ? sel.value : '';
 }
 
 function fmt(n) { return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
@@ -1352,22 +1363,43 @@ function openSupportEdit(id) {
   supportEditIcon = sp ? sp.icon : 'ti-wallet';
   document.getElementById('support-edit-title').textContent = sp ? 'Modifier le support' : 'Nouveau support';
   document.getElementById('support-edit-name').value = sp ? sp.label : '';
-  document.getElementById('support-edit-initial').value = sp && sp.initial ? sp.initial : '';
+  const initialInput = document.getElementById('support-edit-initial');
+  initialInput.disabled = false;
+  initialInput.value = sp && sp.initial ? sp.initial : '';
   document.getElementById('support-edit-pockets').innerHTML = pocketsOf(sp).map(pocketRowHtml).join('');
+  refreshSupportInitial();
   renderSupportIconPicker();
   document.getElementById('support-edit-modal').classList.add('open');
+}
+// Avec des poches, le solde de départ du support n'est plus saisi : c'est le total des poches.
+function refreshSupportInitial() {
+  const input = document.getElementById('support-edit-initial');
+  const note = document.getElementById('support-edit-initial-note');
+  const rows = document.querySelectorAll('#support-edit-pockets .pocket-row');
+  if (rows.length) {
+    if (!input.disabled) input.dataset.manual = input.value;
+    let total = 0;
+    rows.forEach(r => { const v = parseFloat(r.querySelector('.pocket-initial').value); if (!isNaN(v)) total += v; });
+    input.disabled = true;
+    input.value = String(Math.round(total * 100) / 100);
+    note.style.display = 'block';
+  } else {
+    if (input.disabled) { input.disabled = false; input.value = input.dataset.manual || ''; }
+    note.style.display = 'none';
+  }
 }
 function pocketRowHtml(pocket) {
   return `<div class="pocket-row" data-id="${esc(pocket.id)}">
     <input type="text" class="pocket-name" placeholder="Nom de la poche" maxlength="40" value="${esc(pocket.label)}" />
-    <input type="number" class="pocket-initial" step="0.01" placeholder="Départ €" value="${pocket.initial ? esc(pocket.initial) : ''}" />
-    <button type="button" class="icon-btn danger" onclick="this.parentNode.remove()"><i class="ti ti-trash"></i></button>
+    <input type="number" class="pocket-initial" step="0.01" placeholder="Départ €" value="${pocket.initial ? esc(pocket.initial) : ''}" oninput="refreshSupportInitial()" />
+    <button type="button" class="icon-btn danger" onclick="this.parentNode.remove(); refreshSupportInitial()"><i class="ti ti-trash"></i></button>
   </div>`;
 }
 function addPocketRow() {
   const box = document.getElementById('support-edit-pockets');
   box.insertAdjacentHTML('beforeend', pocketRowHtml({ id: '', label: '', initial: 0 }));
   const rows = box.querySelectorAll('.pocket-row');
+  refreshSupportInitial();
   rows[rows.length - 1].querySelector('.pocket-name').focus();
 }
 function closeSupportEdit() { document.getElementById('support-edit-modal').classList.remove('open'); }
@@ -1378,7 +1410,7 @@ function saveSupportEdit() {
     alert('Un support porte déjà ce nom.'); return;
   }
   const raw = parseFloat(document.getElementById('support-edit-initial').value);
-  const initial = isNaN(raw) ? 0 : Math.round(raw * 100) / 100;
+  let initial = isNaN(raw) ? 0 : Math.round(raw * 100) / 100;
 
   // Poches saisies (les lignes sans nom sont ignorées)
   const pockets = [], seenPocket = new Set();
@@ -1394,10 +1426,16 @@ function saveSupportEdit() {
     seenPocket.add(label.toLowerCase());
     pockets.push({ id: row.dataset.id || newPocketId(), label, initial: pocketInitial });
   }
+  // Avec des poches, le solde de départ du support est le total de ses poches
+  if (pockets.length) initial = pocketsTotal(pockets);
 
   if (supportEditId) {
     const sp = getSupportById(supportEditId);
     if (!sp) return;
+    // Le solde de départ change (total des poches) : on prévient avant d'écraser l'ancien montant
+    const oldInitial = Number(sp.initial) || 0;
+    if (pockets.length && oldInitial !== 0 && Math.abs(oldInitial - initial) > 0.004
+        && !confirm('Le solde de départ de « ' + sp.label + ' » passera de ' + fmt(oldInitial) + ' à ' + fmt(initial) + ' (total des poches). Continuer ?')) return;
     // Une poche supprimée : ses transactions restent sur le support, « sans poche »
     const removed = new Set(pocketsOf(sp).filter(e => !pockets.some(n => n.id === e.id)).map(e => e.id));
     if (removed.size) {
