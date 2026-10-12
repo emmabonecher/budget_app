@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mon-budget-31';
+const CACHE_NAME = 'mon-budget-32';
 const ASSETS = [
   './',
   './index.html',
@@ -9,9 +9,13 @@ const ASSETS = [
 ];
 
 self.addEventListener('install', e => {
+  // cache: 'reload' : on met en cache la version du serveur, pas une copie périmée du cache HTTP
   e.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
+    caches.open(CACHE_NAME).then(cache =>
+      cache.addAll(ASSETS.map(url => new Request(url, { cache: 'reload' })))
+    )
   );
+  // Pas de skipWaiting ici : la nouvelle version attend que l'utilisateur clique sur « Mettre à jour ».
 });
 
 self.addEventListener('activate', e => {
@@ -24,8 +28,10 @@ self.addEventListener('activate', e => {
 
 self.addEventListener('fetch', e => {
   if (e.request.mode === 'navigate') {
+    // La page vient du cache de la version active : une nouvelle version ne s'affiche
+    // qu'une fois activée (clic sur « Mettre à jour »). Réseau en secours si le cache est vide.
     e.respondWith(
-      fetch(e.request).catch(() => caches.match('./index.html'))
+      caches.match('./index.html').then(cached => cached || fetch(e.request))
     );
     return;
   }

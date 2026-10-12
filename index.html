@@ -165,6 +165,19 @@ body { background: #f0f0f0; }
 .icon-btn { background: none; border: none; font-size: 17px; color: var(--color-text-secondary); cursor: pointer; padding: 6px; }
 .icon-btn.danger { color: var(--color-text-danger); }
 .add-cat-btn { width: 100%; background: none; border: 0.5px dashed var(--color-border-secondary); border-radius: var(--border-radius-md); padding: 10px; font-size: 13px; color: #378ADD; cursor: pointer; margin-top: 8px; }
+.dash-tile.clickable { cursor: pointer; }
+.dash-tile.open { grid-column: 1 / -1; }
+.dash-tile-name .ti { margin-left: 4px; font-size: 12px; vertical-align: middle; }
+.dash-env-list { margin-top: 6px; border-top: 0.5px solid var(--color-border-tertiary); }
+.dash-env-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; font-size: 14px; border-bottom: 0.5px solid var(--color-border-tertiary); }
+.dash-env-row:last-child { border-bottom: none; }
+.dash-env-name { color: var(--color-text-secondary); min-width: 0; overflow-wrap: anywhere; }
+.dash-env-bal { font-weight: 500; white-space: nowrap; }
+.dash-env-bal.positive { color: var(--color-text-success); }
+.dash-env-bal.negative { color: var(--color-text-danger); }
+.form-group .env-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.form-group .env-row input.env-name { flex: 1; min-width: 0; width: auto; }
+.form-group .env-row input.env-initial { width: 96px; flex: none; }
 .form-group select { width: 100%; padding: 10px 12px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: var(--color-background-secondary); color: var(--color-text-primary); font-size: 15px; font-family: var(--font-sans); }
 .icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
 .icon-choice { aspect-ratio: 1; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: var(--color-background-secondary); font-size: 18px; color: var(--color-text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; }
@@ -303,11 +316,19 @@ body { background: #f0f0f0; }
     </div>
     <div class="form-group">
       <label id="lbl-support">Support</label>
-      <select id="tx-support"></select>
+      <select id="tx-support" onchange="onSupportPick('', 'from')"></select>
+    </div>
+    <div class="form-group" id="grp-env" style="display:none">
+      <label id="lbl-env">Poche</label>
+      <select id="tx-env"></select>
     </div>
     <div class="form-group" id="grp-support-to" style="display:none">
       <label>Support cible</label>
-      <select id="tx-support-to"></select>
+      <select id="tx-support-to" onchange="onSupportPick('', 'to')"></select>
+    </div>
+    <div class="form-group" id="grp-env-to" style="display:none">
+      <label>Poche cible</label>
+      <select id="tx-env-to"></select>
     </div>
     <div class="form-group">
       <label>Date</label>
@@ -371,11 +392,19 @@ body { background: #f0f0f0; }
     </div>
     <div class="form-group">
       <label id="edit-lbl-support">Support</label>
-      <select id="edit-tx-support"></select>
+      <select id="edit-tx-support" onchange="onSupportPick('edit-', 'from')"></select>
+    </div>
+    <div class="form-group" id="edit-grp-env" style="display:none">
+      <label id="edit-lbl-env">Poche</label>
+      <select id="edit-tx-env"></select>
     </div>
     <div class="form-group" id="edit-grp-support-to" style="display:none">
       <label>Support cible</label>
-      <select id="edit-tx-support-to"></select>
+      <select id="edit-tx-support-to" onchange="onSupportPick('edit-', 'to')"></select>
+    </div>
+    <div class="form-group" id="edit-grp-env-to" style="display:none">
+      <label>Poche cible</label>
+      <select id="edit-tx-env-to"></select>
     </div>
     <div class="form-group">
       <label>Date</label>
@@ -424,6 +453,12 @@ body { background: #f0f0f0; }
     <div class="form-group">
       <label>Solde de départ (€)</label>
       <input type="number" id="support-edit-initial" step="0.01" placeholder="0,00" />
+    </div>
+    <div class="form-group">
+      <label>Poches (facultatif)</label>
+      <p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:8px;line-height:1.4">Divisez ce support en poches. Le solde du support reste le total ; touchez le support dans « Soldes » pour voir le détail. Le montant de départ de chaque poche est facultatif : ce qui n'est pas réparti apparaît en « Non affecté ».</p>
+      <div id="support-edit-envs"></div>
+      <button type="button" class="add-cat-btn" onclick="addEnvRow()"><i class="ti ti-plus"></i> Ajouter une poche</button>
     </div>
     <div class="form-group">
       <label>Icône</label>
@@ -508,11 +543,32 @@ try { budgets = JSON.parse(localStorage.getItem('gestion_budgets_v4')||'{}'); } 
 
 // ===== SUPPORTS (compte bancaire, espèces, tickets restaurant...) =====
 const DEFAULT_SUPPORTS = [
-  { id:'sup-card', label:'Compte bancaire', icon:'ti-building-bank', initial:0 },
-  { id:'sup-cash', label:'Espèces',         icon:'ti-cash',          initial:0 }
+  { id:'sup-card', label:'Compte bancaire', icon:'ti-building-bank', initial:0, envelopes:[] },
+  { id:'sup-cash', label:'Espèces',         icon:'ti-cash',          initial:0, envelopes:[] }
 ];
 let SUPPORTS = [];
 let lastSupportId = null;
+let lastEnvBySupport = {};            // dernière poche choisie, par support (le temps de la session)
+let expandedSupports = new Set();     // supports dépliés dans « Soldes »
+
+// Poches : subdivision facultative d'un support. Le solde du support reste le total.
+function envsOf(sp) { return (sp && Array.isArray(sp.envelopes)) ? sp.envelopes : []; }
+function getEnvelope(sp, envId) { return envsOf(sp).find(e => e.id === envId) || null; }
+function newEnvId() { return 'env-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function normalizeEnvelopes(arr) {
+  const out = [], seenIds = new Set(), seenLabels = new Set();
+  if (!Array.isArray(arr)) return out;
+  for (const e of arr) {
+    if (!e || typeof e !== 'object') continue;
+    const id = String(e.id || '');
+    const label = String(e.label || '').replace(/[<>]/g, '').trim();
+    if (!/^[\w-]+$/.test(id) || !label || seenIds.has(id) || seenLabels.has(label.toLowerCase())) continue;
+    const initial = Number.isFinite(Number(e.initial)) ? Math.round(Number(e.initial) * 100) / 100 : 0;
+    seenIds.add(id); seenLabels.add(label.toLowerCase());
+    out.push({ id, label, initial });
+  }
+  return out;
+}
 
 function normalizeSupports(arr) {
   if (!Array.isArray(arr)) return null;
@@ -525,7 +581,7 @@ function normalizeSupports(arr) {
     if (!label) return null;
     const icon = /^ti-[\w-]+$/.test(String(sp.icon || '')) ? sp.icon : 'ti-wallet';
     const initial = Number.isFinite(Number(sp.initial)) ? Math.round(Number(sp.initial) * 100) / 100 : 0;
-    seen.add(id); out.push({ id, label, icon, initial });
+    seen.add(id); out.push({ id, label, icon, initial, envelopes: normalizeEnvelopes(sp.envelopes) });
   }
   return out.length ? out : null;
 }
@@ -542,11 +598,16 @@ function loadSupports() {
 function migrateTxList(list, supports) {
   const valid = new Set(supports.map(sp => sp.id));
   const first = supports[0].id;
+  const byId = new Map(supports.map(sp => [sp.id, sp]));
+  // Une poche n'est valable que si elle existe bien dans le support concerné
+  const envOk = (supId, envId) => typeof envId === 'string' && !!getEnvelope(byId.get(supId), envId);
   let changed = false;
   list.forEach(t => {
     if (t.type === 'transfer') {
       if (!valid.has(t.from)) { t.from = first; changed = true; }
       if (!valid.has(t.to)) { t.to = first; changed = true; }
+      if (t.fromEnv !== undefined && !envOk(t.from, t.fromEnv)) { delete t.fromEnv; changed = true; }
+      if (t.toEnv !== undefined && !envOk(t.to, t.toEnv)) { delete t.toEnv; changed = true; }
       return;
     }
     if (!t.support || !valid.has(t.support)) {
@@ -555,6 +616,7 @@ function migrateTxList(list, supports) {
       changed = true;
     }
     if ('payment' in t) { delete t.payment; changed = true; }
+    if (t.env !== undefined && !envOk(t.support, t.env)) { delete t.env; changed = true; }
   });
   return changed;
 }
@@ -581,6 +643,24 @@ function supportBalance(id) {
   });
   return Math.round(b * 100) / 100 + 0;
 }
+// Solde d'une poche (envId) ou de la part « non affectée » du support (envId = null).
+// Non affecté = solde de départ du support moins les départs des poches, plus les mouvements sans poche.
+function bucketBalance(supId, envId) {
+  const sp = getSupportById(supId);
+  if (!sp) return 0;
+  let b;
+  if (envId) { const e = getEnvelope(sp, envId); b = e ? (Number(e.initial) || 0) : 0; }
+  else b = (Number(sp.initial) || 0) - envsOf(sp).reduce((s, e) => s + (Number(e.initial) || 0), 0);
+  const today = todayStr();
+  transactions.forEach(t => {
+    if (t.date > today) return;
+    if (t.type === 'transfer') {
+      if (t.from === supId && (t.fromEnv || null) === envId) b -= t.amount;
+      if (t.to === supId && (t.toEnv || null) === envId) b += t.amount;
+    } else if (t.support === supId && (t.env || null) === envId) b += t.type === 'income' ? t.amount : -t.amount;
+  });
+  return Math.round(b * 100) / 100 + 0;
+}
 function defaultToSupport(fromId) {
   const other = SUPPORTS.find(sp => sp.id !== fromId);
   return other ? other.id : fromId;
@@ -589,6 +669,35 @@ function fillSupportSelect(selectId, selected) {
   const el = document.getElementById(selectId);
   el.innerHTML = SUPPORTS.map(sp => `<option value="${esc(sp.id)}">${esc(sp.label)}</option>`).join('');
   el.value = getSupportById(selected) ? selected : SUPPORTS[0].id;
+}
+// Liste des poches d'un support dans un <select> ("" = sans poche).
+// selected : id de poche, '' pour « sans poche », null/undefined pour le choix par défaut.
+function fillEnvSelect(selectId, supportId, selected) {
+  const sel = document.getElementById(selectId);
+  const envs = envsOf(getSupportById(supportId));
+  sel.innerHTML = envs.map(e => `<option value="${esc(e.id)}">${esc(e.label)}</option>`).join('')
+    + '<option value="">Sans poche</option>';
+  let v = selected;
+  if (v == null) v = lastEnvBySupport[supportId];
+  if (v == null || (v !== '' && !envs.some(e => e.id === v))) v = envs.length ? envs[0].id : '';
+  sel.value = v;
+}
+// Les listes de poches n'apparaissent que si le support choisi en a
+function updateEnvVisibility(p) {
+  const type = p ? editTxType : txType;
+  const has = id => document.getElementById(id).options.length > 1;
+  document.getElementById(p + 'grp-env').style.display = has(p + 'tx-env') ? 'block' : 'none';
+  document.getElementById(p + 'grp-env-to').style.display = (type === 'transfer' && has(p + 'tx-env-to')) ? 'block' : 'none';
+}
+function onSupportPick(p, side) {
+  const q = id => document.getElementById(p + id);
+  if (side === 'to') fillEnvSelect(p + 'tx-env-to', q('tx-support-to').value, null);
+  else fillEnvSelect(p + 'tx-env', q('tx-support').value, null);
+  updateEnvVisibility(p);
+}
+function readEnv(selectId) {
+  const sel = document.getElementById(selectId);
+  return sel.options.length > 1 ? sel.value : '';
 }
 
 function fmt(n) { return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
@@ -615,10 +724,11 @@ function updateDisplays() {
   renderAnalyse();
 }
 
-function supportBadge(id) {
+function supportBadge(id, envId) {
   const sp = getSupportById(id);
   if (!sp) return '';
-  return `<span class="tx-payment-badge card"><i class="ti ${esc(sp.icon)}" style="font-size:10px"></i>${esc(sp.label)}</span>`;
+  const env = envId ? getEnvelope(sp, envId) : null;
+  return `<span class="tx-payment-badge card"><i class="ti ${esc(sp.icon)}" style="font-size:10px"></i>${esc(sp.label)}${env ? ' · ' + esc(env.label) : ''}</span>`;
 }
 
 function renderList(el, txs, withActions) {
@@ -627,10 +737,10 @@ function renderList(el, txs, withActions) {
     const cat=getCatById(t.cat);
     let icon=cat?cat.icon:'ti-box', bg=cat?cat.color:'#F1EFE8';
     let catLabel=cat?(cat.group?cat.group+' · '+cat.label:cat.label):'Catégorie supprimée';
-    let name=esc(t.desc), badges=supportBadge(t.support), amountHtml;
+    let name=esc(t.desc), badges=supportBadge(t.support, t.env), amountHtml;
     if (t.type==='transfer') {
       icon='ti-arrows-exchange'; bg='#E6F1FB'; catLabel=''; name='Transfert';
-      badges=supportBadge(t.from)+' <i class="ti ti-arrow-right" style="font-size:11px"></i> '+supportBadge(t.to);
+      badges=supportBadge(t.from, t.fromEnv)+' <i class="ti ti-arrow-right" style="font-size:11px"></i> '+supportBadge(t.to, t.toEnv);
       amountHtml=`<div class="tx-amount" style="color:var(--color-text-info)">${fmt(t.amount)}</div>`;
     } else {
       if (t.type==='income' && !cat) { icon='ti-arrow-down'; bg='#EAF3DE'; catLabel='Recette'; }
@@ -754,6 +864,8 @@ function openModal() {
   selectedCatId=null;
   fillSupportSelect('tx-support', lastSupportId);
   fillSupportSelect('tx-support-to', defaultToSupport(document.getElementById('tx-support').value));
+  fillEnvSelect('tx-env', document.getElementById('tx-support').value, null);
+  fillEnvSelect('tx-env-to', document.getElementById('tx-support-to').value, null);
   document.getElementById('selected-cat-label').textContent='Choisir une catégorie';
   document.getElementById('selected-cat-label').style.color='var(--color-text-secondary)';
   document.getElementById('tx-date').value=todayStr();
@@ -780,6 +892,8 @@ function applyTypeUI(p, type) {
   q('grp-cat').style.display = type==='expense' ? 'block' : 'none';
   q('grp-support-to').style.display = type==='transfer' ? 'block' : 'none';
   q('lbl-support').textContent = type==='transfer' ? 'Support de départ' : 'Support';
+  q('lbl-env').textContent = type==='transfer' ? 'Poche de départ' : 'Poche';
+  updateEnvVisibility(p);
 }
 
 function openCatPicker() {
@@ -822,17 +936,22 @@ function addTransaction() {
   let tx;
   if (txType==='transfer') {
     const to=document.getElementById('tx-support-to').value;
+    const fromEnv=readEnv('tx-env'), toEnv=readEnv('tx-env-to');
     if(!amount||amount<=0||!date){alert('Veuillez remplir tous les champs.');return;}
-    if(SUPPORTS.length<2){alert('Il faut au moins deux supports pour faire un transfert.');return;}
-    if(support===to){alert('Le support de départ et le support cible doivent être différents.');return;}
+    if(support===to&&fromEnv===toEnv){alert('Le départ et la cible doivent être différents (support ou poche).');return;}
     tx={id:Date.now(),type:'transfer',desc:'',amount,date,from:support,to};
+    if(fromEnv) tx.fromEnv=fromEnv;
+    if(toEnv) tx.toEnv=toEnv;
   } else {
     const desc=document.getElementById('tx-desc').value.trim();
     if(!desc||!amount||amount<=0||!date){alert('Veuillez remplir tous les champs.');return;}
     if(txType==='expense'&&!selectedCatId){alert('Veuillez choisir une catégorie.');return;}
+    const env=readEnv('tx-env');
     tx={id:Date.now(),type:txType,desc,amount,date,support};
+    if(env) tx.env=env;
     if(txType==='expense') tx.cat=selectedCatId;
     lastSupportId=support;
+    lastEnvBySupport[support]=env;
   }
   transactions.push(tx); save(); closeModal(); updateDisplays();
 }
@@ -956,6 +1075,9 @@ function startEditTransaction() {
   const from = t.type==='transfer' ? t.from : t.support;
   fillSupportSelect('edit-tx-support', from);
   fillSupportSelect('edit-tx-support-to', t.type==='transfer' ? t.to : defaultToSupport(from));
+  // '' = « Sans poche » : une ancienne transaction sans poche le reste tant qu'on n'en choisit pas une
+  fillEnvSelect('edit-tx-env', document.getElementById('edit-tx-support').value, (t.type==='transfer' ? t.fromEnv : t.env) || '');
+  fillEnvSelect('edit-tx-env-to', document.getElementById('edit-tx-support-to').value, t.type==='transfer' ? (t.toEnv || '') : null);
   const cat = getCatById(editSelectedCatId);
   const el = document.getElementById('edit-selected-cat-label');
   if (cat) { el.textContent = cat.group ? cat.group+' · '+cat.label : cat.label; el.style.color = 'var(--color-text-primary)'; }
@@ -1015,15 +1137,19 @@ function saveEditTransaction() {
   let nt;
   if (editTxType === 'transfer') {
     const to = document.getElementById('edit-tx-support-to').value;
+    const fromEnv = readEnv('edit-tx-env'), toEnv = readEnv('edit-tx-env-to');
     if (!amount||amount<=0||!date) { alert('Veuillez remplir tous les champs.'); return; }
-    if (SUPPORTS.length < 2) { alert('Il faut au moins deux supports pour faire un transfert.'); return; }
-    if (support === to) { alert('Le support de départ et le support cible doivent être différents.'); return; }
+    if (support === to && fromEnv === toEnv) { alert('Le départ et la cible doivent être différents (support ou poche).'); return; }
     nt = { id: old.id, type: 'transfer', desc: '', amount, date, from: support, to };
+    if (fromEnv) nt.fromEnv = fromEnv;
+    if (toEnv) nt.toEnv = toEnv;
   } else {
     const desc = document.getElementById('edit-tx-desc').value.trim();
     if (!desc||!amount||amount<=0||!date) { alert('Veuillez remplir tous les champs.'); return; }
     if (editTxType === 'expense' && !editSelectedCatId) { alert('Veuillez choisir une catégorie.'); return; }
+    const env = readEnv('edit-tx-env');
     nt = { id: old.id, type: editTxType, desc, amount, date, support };
+    if (env) nt.env = env;
     if (editTxType === 'expense') nt.cat = editSelectedCatId;
     else if (old.type === 'income' && old.cat) nt.cat = old.cat;   // on garde l'ancienne catégorie d'une recette existante
   }
@@ -1200,7 +1326,7 @@ function renderSupportsSettings() {
   if (!el) return;
   el.innerHTML = SUPPORTS.map(sp => `<div class="set-cat-row">
     <div class="cat-row-icon" style="background:#E6F1FB"><i class="ti ${esc(sp.icon)}" style="font-size:15px;color:var(--color-text-primary)"></i></div>
-    <div class="cat-row-name">${esc(sp.label)}<div style="font-size:11px;color:var(--color-text-tertiary)">Solde de départ : ${fmt(Number(sp.initial) || 0)}</div></div>
+    <div class="cat-row-name">${esc(sp.label)}<div style="font-size:11px;color:var(--color-text-tertiary)">Solde de départ : ${fmt(Number(sp.initial) || 0)}</div>${envsOf(sp).length ? `<div style="font-size:11px;color:var(--color-text-tertiary)">Poches : ${envsOf(sp).map(e => esc(e.label)).join(', ')}</div>` : ''}</div>
     <button class="icon-btn" onclick="openSupportEdit('${esc(sp.id)}')"><i class="ti ti-pencil"></i></button>
     <button class="icon-btn danger" onclick="deleteSupport('${esc(sp.id)}')"><i class="ti ti-trash"></i></button>
   </div>`).join('');
@@ -1218,8 +1344,22 @@ function openSupportEdit(id) {
   document.getElementById('support-edit-title').textContent = sp ? 'Modifier le support' : 'Nouveau support';
   document.getElementById('support-edit-name').value = sp ? sp.label : '';
   document.getElementById('support-edit-initial').value = sp && sp.initial ? sp.initial : '';
+  document.getElementById('support-edit-envs').innerHTML = envsOf(sp).map(envRowHtml).join('');
   renderSupportIconPicker();
   document.getElementById('support-edit-modal').classList.add('open');
+}
+function envRowHtml(env) {
+  return `<div class="env-row" data-id="${esc(env.id)}">
+    <input type="text" class="env-name" placeholder="Nom de la poche" maxlength="40" value="${esc(env.label)}" />
+    <input type="number" class="env-initial" step="0.01" placeholder="Départ €" value="${env.initial ? esc(env.initial) : ''}" />
+    <button type="button" class="icon-btn danger" onclick="this.parentNode.remove()"><i class="ti ti-trash"></i></button>
+  </div>`;
+}
+function addEnvRow() {
+  const box = document.getElementById('support-edit-envs');
+  box.insertAdjacentHTML('beforeend', envRowHtml({ id: '', label: '', initial: 0 }));
+  const rows = box.querySelectorAll('.env-row');
+  rows[rows.length - 1].querySelector('.env-name').focus();
 }
 function closeSupportEdit() { document.getElementById('support-edit-modal').classList.remove('open'); }
 function saveSupportEdit() {
@@ -1230,12 +1370,44 @@ function saveSupportEdit() {
   }
   const raw = parseFloat(document.getElementById('support-edit-initial').value);
   const initial = isNaN(raw) ? 0 : Math.round(raw * 100) / 100;
+
+  // Poches saisies (les lignes sans nom sont ignorées)
+  const envelopes = [], seenEnv = new Set();
+  for (const row of document.querySelectorAll('#support-edit-envs .env-row')) {
+    const label = cleanName(row.querySelector('.env-name').value);
+    const rawI = parseFloat(row.querySelector('.env-initial').value);
+    const envInitial = isNaN(rawI) ? 0 : Math.round(rawI * 100) / 100;
+    if (!label) {
+      if (envInitial) { alert('Veuillez donner un nom à chaque poche.'); return; }
+      continue;
+    }
+    if (seenEnv.has(label.toLowerCase())) { alert('Deux poches portent le même nom.'); return; }
+    seenEnv.add(label.toLowerCase());
+    envelopes.push({ id: row.dataset.id || newEnvId(), label, initial: envInitial });
+  }
+
   if (supportEditId) {
     const sp = getSupportById(supportEditId);
     if (!sp) return;
-    sp.label = name; sp.icon = supportEditIcon; sp.initial = initial;
+    // Une poche supprimée : ses transactions restent sur le support, « sans poche »
+    const removed = new Set(envsOf(sp).filter(e => !envelopes.some(n => n.id === e.id)).map(e => e.id));
+    if (removed.size) {
+      const used = transactions.filter(t => t.type === 'transfer'
+        ? (t.from === sp.id && removed.has(t.fromEnv)) || (t.to === sp.id && removed.has(t.toEnv))
+        : t.support === sp.id && removed.has(t.env)).length;
+      if (used && !confirm(used + ' transaction(s) utilisent une poche supprimée. Elles seront conservées sur « ' + sp.label + ' » sans poche. Continuer ?')) return;
+      transactions.forEach(t => {
+        if (t.type === 'transfer') {
+          if (t.from === sp.id && removed.has(t.fromEnv)) delete t.fromEnv;
+          if (t.to === sp.id && removed.has(t.toEnv)) delete t.toEnv;
+        } else if (t.support === sp.id && removed.has(t.env)) delete t.env;
+      });
+      removed.forEach(id => { if (lastEnvBySupport[sp.id] === id) delete lastEnvBySupport[sp.id]; });
+      save();
+    }
+    sp.label = name; sp.icon = supportEditIcon; sp.initial = initial; sp.envelopes = envelopes;
   } else {
-    SUPPORTS.push({ id: 'sup-' + Date.now(), label: name, icon: supportEditIcon, initial });
+    SUPPORTS.push({ id: 'sup-' + Date.now(), label: name, icon: supportEditIcon, initial, envelopes });
   }
   saveSupports(); closeSupportEdit(); renderSupportsSettings(); updateDisplays();
 }
@@ -1247,8 +1419,11 @@ function deleteSupport(id) {
   const touches = t => t.type === 'transfer' ? (t.from === id || t.to === id) : t.support === id;
   const moved = transactions.filter(touches).length;
   // Un transfert entre le support supprimé et le support de repli n'aurait plus de sens
+  // (les poches du support supprimé disparaissent avec lui : le côté déplacé n'a plus de poche)
   const pointless = new Set(transactions.filter(t => t.type === 'transfer'
-    && (t.from === id ? target.id : t.from) === (t.to === id ? target.id : t.to)).map(t => t.id));
+    && (t.from === id || t.to === id)
+    && (t.from === id ? target.id : t.from) === (t.to === id ? target.id : t.to)
+    && (t.from === id ? '' : (t.fromEnv || '')) === (t.to === id ? '' : (t.toEnv || ''))).map(t => t.id));
   let msg = moved
     ? moved + ' transaction(s) utilisent « ' + sp.label + ' ». Elles seront déplacées vers « ' + target.label + ' ».'
     : 'Supprimer le support « ' + sp.label + ' » ?';
@@ -1256,25 +1431,49 @@ function deleteSupport(id) {
   if (moved) msg += ' Supprimer quand même ?';
   if (!confirm(msg)) return;
   transactions.forEach(t => {
-    if (t.type === 'transfer') { if (t.from === id) t.from = target.id; if (t.to === id) t.to = target.id; }
-    else if (t.support === id) t.support = target.id;
+    if (t.type === 'transfer') {
+      if (t.from === id) { t.from = target.id; delete t.fromEnv; }
+      if (t.to === id) { t.to = target.id; delete t.toEnv; }
+    } else if (t.support === id) { t.support = target.id; delete t.env; }
   });
   transactions = transactions.filter(t => !pointless.has(t.id));
   SUPPORTS = SUPPORTS.filter(x => x.id !== id);
   if (lastSupportId === id) lastSupportId = null;
+  delete lastEnvBySupport[id];
+  expandedSupports.delete(id);
   saveSupports(); save(); renderSupportsSettings(); updateDisplays();
 }
 
 // ===== TABLEAU DE BORD : solde actuel de chaque support =====
+function toggleSupportEnvs(id) {
+  if (expandedSupports.has(id)) expandedSupports.delete(id); else expandedSupports.add(id);
+  renderDashboard();
+}
 function renderDashboard() {
   const el = document.getElementById('dashboard-content');
   if (!el) return;
   const tiles = SUPPORTS.map(sp => {
-    const bal = supportBalance(sp.id);
-    return `<div class="dash-tile">
+    const bal = supportBalance(sp.id);          // toujours le solde total du support
+    const envs = envsOf(sp);
+    const hasEnv = envs.length > 0;
+    const open = hasEnv && expandedSupports.has(sp.id);
+    let detail = '';
+    if (open) {
+      const rows = envs.map(e => ({ label: e.label, bal: bucketBalance(sp.id, e.id) }));
+      const rest = bucketBalance(sp.id, null);
+      if (rest !== 0) rows.push({ label: 'Non affecté', bal: rest });
+      detail = '<div class="dash-env-list">' + rows.map(r =>
+        `<div class="dash-env-row"><span class="dash-env-name">${esc(r.label)}</span><span class="dash-env-bal ${r.bal >= 0 ? 'positive' : 'negative'}">${fmt(r.bal)}</span></div>`
+      ).join('') + '</div>';
+    }
+    const attrs = hasEnv
+      ? ` role="button" tabindex="0" aria-expanded="${open}" onclick="toggleSupportEnvs('${esc(sp.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSupportEnvs('${esc(sp.id)}')}"`
+      : '';
+    return `<div class="dash-tile${hasEnv ? ' clickable' : ''}${open ? ' open' : ''}"${attrs}>
       <div class="dash-tile-icon"><i class="ti ${esc(sp.icon)}"></i></div>
-      <div class="dash-tile-name">${esc(sp.label)}</div>
+      <div class="dash-tile-name">${esc(sp.label)}${hasEnv ? `<i class="ti ti-chevron-${open ? 'up' : 'down'}"></i>` : ''}</div>
       <div class="dash-tile-balance ${bal >= 0 ? 'positive' : 'negative'}">${fmt(bal)}</div>
+      ${detail}
     </div>`;
   }).join('');
   el.innerHTML = `<div class="section-title">Soldes au ${todayStr().split('-').reverse().join('/')}</div>
@@ -1286,7 +1485,7 @@ function renderDashboard() {
 function exportData() {
   const payload = {
     app: 'mon-budget',
-    version: 3,
+    version: 4,
     exportedAt: new Date().toISOString(),
     transactions: transactions,
     budgets: budgets,
@@ -1574,30 +1773,36 @@ setupHistory();
 updateDisplays();
 setType('expense');
 showPage('main');
-let newWorker;
+// Mise à jour : la nouvelle version n'est appliquée que lorsqu'on clique sur « Mettre à jour »
+let updateRequested = false;
+function showUpdateBanner() {
+  document.getElementById('update-banner').style.display = 'block';
+}
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./service-worker.js').then(reg => {
+      // Une mise à jour déjà téléchargée et en attente (bannière ignorée lors d'une visite précédente)
+      if (reg.waiting && navigator.serviceWorker.controller) showUpdateBanner();
       reg.addEventListener('updatefound', () => {
-        newWorker = reg.installing;
-        newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            document.getElementById('update-banner').style.display = 'block';
-          }
+        const nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner();
         });
       });
     });
   });
 
+  // On ne recharge que si l'utilisateur a demandé la mise à jour
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    window.location.reload();
+    if (updateRequested) window.location.reload();
   });
 }
 function applyUpdate() {
+  updateRequested = true;
   navigator.serviceWorker.getRegistration().then(reg => {
-    if (reg && reg.waiting) {
-      reg.waiting.postMessage({ action: 'skipWaiting' });
-    }
+    if (reg && reg.waiting) reg.waiting.postMessage({ action: 'skipWaiting' });
+    else window.location.reload();
   });
 }
 </script>
