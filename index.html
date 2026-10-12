@@ -62,7 +62,15 @@ body { background: #f0f0f0; }
 .tx-meta { font-size: 12px; color: var(--color-text-secondary); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .tx-payment-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; padding: 1px 6px; border-radius: 20px; flex-shrink: 0; }
 .tx-payment-badge.card { background: #E6F1FB; color: #185FA5; }
-.tx-payment-badge.cash { background: #EAF3DE; color: #3B6D11; }
+.support-card { background: var(--color-background-primary); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 14px; margin-bottom: 8px; }
+.support-card-top { display: flex; align-items: center; gap: 12px; }
+.support-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; color: var(--color-text-primary); }
+.support-balance { font-size: 17px; font-weight: 500; flex-shrink: 0; }
+.support-balance.positive { color: var(--color-text-success); }
+.support-balance.negative { color: var(--color-text-danger); }
+.support-month { margin-top: 8px; padding-left: 44px; font-size: 12px; color: var(--color-text-secondary); }
+.support-month .pos { color: var(--color-text-success); }
+.support-month .neg { color: var(--color-text-danger); }
 .tx-amount { font-size: 15px; font-weight: 500; flex-shrink: 0; }
 .tx-amount.pos { color: var(--color-text-success); }
 .tx-amount.neg { color: var(--color-text-danger); }
@@ -79,15 +87,6 @@ body { background: #f0f0f0; }
 .type-btn { padding: 10px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: none; color: var(--color-text-secondary); font-size: 14px; cursor: pointer; }
 .type-btn.active-income { background: var(--color-background-success); color: var(--color-text-success); border-color: var(--color-border-success); }
 .type-btn.active-expense { background: var(--color-background-danger); color: var(--color-text-danger); border-color: var(--color-border-danger); }
-.payment-toggle { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.payment-btn { padding: 12px 8px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: none; color: var(--color-text-secondary); font-size: 13px; cursor: pointer; text-align: center; line-height: 1.4; }
-.payment-btn i { display: block; font-size: 20px; margin-bottom: 4px; }
-.payment-btn .pay-label { font-weight: 500; font-size: 13px; }
-.payment-btn .pay-sub { font-size: 11px; color: var(--color-text-tertiary); margin-top: 2px; }
-.payment-btn.active-card { background: #E6F1FB; color: #185FA5; border-color: #B5D4F4; }
-.payment-btn.active-card .pay-sub { color: #378ADD; }
-.payment-btn.active-cash { background: #EAF3DE; color: #3B6D11; border-color: #C0DD97; }
-.payment-btn.active-cash .pay-sub { color: #639922; }
 .btn-primary { width: 100%; padding: 14px; background: #378ADD; color: white; border: none; border-radius: var(--border-radius-md); font-size: 15px; font-weight: 500; cursor: pointer; margin-top: 8px; }
 .btn-secondary { width: 100%; padding: 12px; background: none; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); font-size: 14px; color: var(--color-text-secondary); cursor: pointer; margin-top: 8px; }
 .btn-danger-secondary { background: var(--color-background-danger); border-color: var(--color-border-danger); color: var(--color-text-danger); }
@@ -203,6 +202,7 @@ body { background: #f0f0f0; }
   <div class="nav">
     <button class="nav-btn active" onclick="showPage('main')" id="nav-main"><i class="ti ti-home"></i>Accueil</button>
     <button class="nav-btn" onclick="showPage('budget')" id="nav-budget"><i class="ti ti-chart-bar"></i>Budget</button>
+    <button class="nav-btn" onclick="showPage('supports')" id="nav-supports"><i class="ti ti-wallet"></i>Supports</button>
   </div>
 
   <div class="page active" id="page-main">
@@ -250,6 +250,14 @@ body { background: #f0f0f0; }
     </div>
     <div id="budget-page-content"></div>
   </div>
+  <div class="page" id="page-supports">
+    <div class="month-nav">
+      <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
+      <span class="month-label" id="month-display4"></span>
+      <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
+    </div>
+    <div id="supports-page-content" style="padding-bottom:72px"></div>
+  </div>
   <div class="page" id="page-settings">
   <div class="settings-top">
     <button class="back-btn" onclick="history.back()"><i class="ti ti-chevron-left"></i> Retour</button>
@@ -261,12 +269,18 @@ body { background: #f0f0f0; }
     <button class="type-btn" id="set-tab-income" onclick="setSettingsTab('income')">Recettes</button>
   </div>
   <div id="settings-content"></div>
+  <button class="btn-secondary btn-danger-secondary" style="margin-top:24px" onclick="resetCategories()">Réinitialiser les catégories par défaut</button>
+
+  <div class="section-title" style="margin-top:28px">Supports</div>
+  <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:8px;line-height:1.4">Compte bancaire, espèces, tickets restaurant… Chaque dépense et chaque recette est rattachée à un support. Le solde de départ est le montant présent sur le support avant votre première transaction.</p>
+  <div id="supports-settings"></div>
+  <button class="add-cat-btn" onclick="openSupportEdit(null)"><i class="ti ti-plus"></i> Ajouter un support</button>
+
   <div class="section-title" style="margin-top:28px">Sauvegarde des données</div>
   <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:6px;line-height:1.4">Vos données sont stockées sur cet appareil. Exportez-les régulièrement dans un fichier pour ne rien perdre.</p>
   <button class="btn-primary" onclick="exportData()"><i class="ti ti-download" style="margin-right:6px"></i>Exporter mes données</button>
   <button class="btn-secondary" onclick="document.getElementById('import-file').click()"><i class="ti ti-upload" style="margin-right:6px"></i>Importer une sauvegarde</button>
   <input type="file" id="import-file" accept=".json,application/json" style="display:none" onchange="importData(this.files[0]); this.value=''" />
-  <button class="btn-secondary btn-danger-secondary" style="margin-top:24px" onclick="resetCategories()">Réinitialiser les catégories par défaut</button>
 </div>
   <div class="page" id="page-analyse">
   <div class="settings-top">
@@ -303,20 +317,9 @@ body { background: #f0f0f0; }
         <i class="ti ti-chevron-down"></i>
       </div>
     </div>
-    <div class="form-group" id="payment-group">
-      <label>Moyen de paiement</label>
-      <div class="payment-toggle">
-        <button class="payment-btn active-card" id="btn-card" onclick="setPayment('card')">
-          <i class="ti ti-credit-card"></i>
-          <div class="pay-label">CB / Virement</div>
-          <div class="pay-sub">Chèque bancaire</div>
-        </button>
-        <button class="payment-btn" id="btn-cash" onclick="setPayment('cash')">
-          <i class="ti ti-cash"></i>
-          <div class="pay-label">Espèces</div>
-          <div class="pay-sub">Chèque cadeau, etc.</div>
-        </button>
-      </div>
+    <div class="form-group">
+      <label>Support</label>
+      <select id="tx-support"></select>
     </div>
     <div class="form-group">
       <label>Date</label>
@@ -377,20 +380,9 @@ body { background: #f0f0f0; }
         <i class="ti ti-chevron-down"></i>
       </div>
     </div>
-    <div class="form-group" id="edit-payment-group">
-      <label>Moyen de paiement</label>
-      <div class="payment-toggle">
-        <button class="payment-btn active-card" id="edit-btn-card" onclick="setEditPayment('card')">
-          <i class="ti ti-credit-card"></i>
-          <div class="pay-label">CB / Virement</div>
-          <div class="pay-sub">Chèque bancaire</div>
-        </button>
-        <button class="payment-btn" id="edit-btn-cash" onclick="setEditPayment('cash')">
-          <i class="ti ti-cash"></i>
-          <div class="pay-label">Espèces</div>
-          <div class="pay-sub">Chèque cadeau, etc.</div>
-        </button>
-      </div>
+    <div class="form-group">
+      <label>Support</label>
+      <select id="edit-tx-support"></select>
     </div>
     <div class="form-group">
       <label>Date</label>
@@ -424,6 +416,28 @@ body { background: #f0f0f0; }
     </div>
     <button class="btn-primary" onclick="saveCatEdit()">Enregistrer</button>
     <button class="btn-secondary" onclick="closeCatEdit()">Annuler</button>
+  </div>
+</div>
+
+<!-- Support edit modal -->
+<div class="modal-bg" id="support-edit-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeSupportEdit()"><i class="ti ti-x"></i></button>
+    <h2 id="support-edit-title">Nouveau support</h2>
+    <div class="form-group">
+      <label>Nom</label>
+      <input type="text" id="support-edit-name" placeholder="Ex : Compte courant, Tickets restaurant" />
+    </div>
+    <div class="form-group">
+      <label>Solde de départ (€)</label>
+      <input type="number" id="support-edit-initial" step="0.01" placeholder="0,00" />
+    </div>
+    <div class="form-group">
+      <label>Icône</label>
+      <div class="icon-grid" id="support-edit-icons"></div>
+    </div>
+    <button class="btn-primary" onclick="saveSupportEdit()">Enregistrer</button>
+    <button class="btn-secondary" onclick="closeSupportEdit()">Annuler</button>
   </div>
 </div>
 
@@ -484,11 +498,11 @@ loadCategories();
   
 let now = new Date();
 let viewYear = now.getFullYear(), viewMonth = now.getMonth();
-let txType = 'expense', selectedCatId = null, selectedPayment = 'card';
+let txType = 'expense', selectedCatId = null;
 let transactions = [], budgets = {};
 let selectMode = false, selectedIds = new Set();
 let actionTxId = null;
-let editTxId = null, editTxType = 'expense', editSelectedCatId = null, editSelectedPayment = 'card';
+let editTxId = null, editTxType = 'expense', editSelectedCatId = null;
 
 function save() {
   try {
@@ -498,6 +512,72 @@ function save() {
 }
 try { transactions = JSON.parse(localStorage.getItem('gestion_tx_v4')||'[]'); } catch(e){}
 try { budgets = JSON.parse(localStorage.getItem('gestion_budgets_v4')||'{}'); } catch(e){}
+
+// ===== SUPPORTS (compte bancaire, espèces, tickets restaurant...) =====
+const DEFAULT_SUPPORTS = [
+  { id:'sup-card', label:'Compte bancaire', icon:'ti-building-bank', initial:0 },
+  { id:'sup-cash', label:'Espèces',         icon:'ti-cash',          initial:0 }
+];
+let SUPPORTS = [];
+let lastSupportId = null;
+
+function normalizeSupports(arr) {
+  if (!Array.isArray(arr)) return null;
+  const out = [], seen = new Set();
+  for (const sp of arr) {
+    if (!sp || typeof sp !== 'object') return null;
+    const id = String(sp.id || '');
+    if (!/^[\w-]+$/.test(id) || seen.has(id)) return null;
+    const label = String(sp.label || '').replace(/[<>]/g, '').trim();
+    if (!label) return null;
+    const icon = /^ti-[\w-]+$/.test(String(sp.icon || '')) ? sp.icon : 'ti-wallet';
+    const initial = Number.isFinite(Number(sp.initial)) ? Math.round(Number(sp.initial) * 100) / 100 : 0;
+    seen.add(id); out.push({ id, label, icon, initial });
+  }
+  return out.length ? out : null;
+}
+function saveSupports() {
+  try { localStorage.setItem('gestion_supports_v1', JSON.stringify(SUPPORTS)); } catch (e) {}
+}
+function loadSupports() {
+  let saved = null;
+  try { saved = normalizeSupports(JSON.parse(localStorage.getItem('gestion_supports_v1'))); } catch (e) {}
+  if (saved) { SUPPORTS = saved; }
+  else { SUPPORTS = DEFAULT_SUPPORTS.map(sp => ({ ...sp })); saveSupports(); }
+}
+// Anciennes données : "payment" (card/cash) devient un support. Les recettes sans support vont sur le premier support.
+function migrateTxList(list, supports) {
+  const valid = new Set(supports.map(sp => sp.id));
+  const first = supports[0].id;
+  let changed = false;
+  list.forEach(t => {
+    if (!t.support || !valid.has(t.support)) {
+      const target = t.payment === 'cash' ? 'sup-cash' : 'sup-card';
+      t.support = valid.has(target) ? target : first;
+      changed = true;
+    }
+    if ('payment' in t) { delete t.payment; changed = true; }
+  });
+  return changed;
+}
+loadSupports();
+if (migrateTxList(transactions, SUPPORTS)) save();
+
+function esc(v) {
+  return String(v == null ? '' : v).replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
+}
+function getSupportById(id) { return SUPPORTS.find(sp => sp.id === id) || null; }
+function supportBalance(id) {
+  const sp = getSupportById(id);
+  let b = sp ? (Number(sp.initial) || 0) : 0;
+  transactions.forEach(t => { if (t.support === id) b += t.type === 'income' ? t.amount : -t.amount; });
+  return Math.round(b * 100) / 100 + 0;
+}
+function fillSupportSelect(selectId, selected) {
+  const el = document.getElementById(selectId);
+  el.innerHTML = SUPPORTS.map(sp => `<option value="${esc(sp.id)}">${esc(sp.label)}</option>`).join('');
+  el.value = getSupportById(selected) ? selected : SUPPORTS[0].id;
+}
 
 function fmt(n) { return n.toLocaleString('fr-FR',{minimumFractionDigits:2,maximumFractionDigits:2})+' €'; }
 function fmtInt(n) { return n.toLocaleString('fr-FR',{minimumFractionDigits:0,maximumFractionDigits:0})+' €'; }
@@ -509,7 +589,7 @@ function prevMonthKey(y,m) { let pm=m-1,py=y; if(pm<0){pm=11;py--;} return month
 
 function updateDisplays() {
   const label = MONTHS[viewMonth]+' '+viewYear;
-  ['month-display','month-display3'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=label;});
+  ['month-display','month-display3','month-display4'].forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=label;});
   document.getElementById('header-month').textContent = label;
   const txs = getMonthTx();
   const income = txs.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
@@ -527,13 +607,14 @@ function updateDisplays() {
   });
   renderList(document.getElementById('all-list'), sorted, true);
   renderBudgetPage(txs);
+  renderSupportsPage();
   renderAnalyse();
 }
 
-function paymentBadge(payment) {
-  if (!payment) return '';
-  const isCard = payment==='card';
-  return `<span class="tx-payment-badge ${isCard?'card':'cash'}"><i class="ti ${isCard?'ti-credit-card':'ti-cash'}" style="font-size:10px"></i>${isCard?'CB':'Espèces'}</span>`;
+function supportBadge(id) {
+  const sp = getSupportById(id);
+  if (!sp) return '';
+  return `<span class="tx-payment-badge card"><i class="ti ${esc(sp.icon)}" style="font-size:10px"></i>${esc(sp.label)}</span>`;
 }
 
 function renderList(el, txs, withActions) {
@@ -550,8 +631,8 @@ function renderList(el, txs, withActions) {
       ${checkbox}
       <div class="tx-icon" style="background:${bg}"><i class="ti ${icon}" style="font-size:16px;color:var(--color-text-primary)"></i></div>
       <div class="tx-info">
-        <div class="tx-name">${t.desc}</div>
-        <div class="tx-meta">${catLabel} ${t.type==='expense'?paymentBadge(t.payment):''} <span style="font-size:11px;color:var(--color-text-tertiary)">· ${t.date.split('-').reverse().join('/')}</span></div>
+        <div class="tx-name">${esc(t.desc)}</div>
+        <div class="tx-meta">${catLabel} ${supportBadge(t.support)} <span style="font-size:11px;color:var(--color-text-tertiary)">· ${t.date.split('-').reverse().join('/')}</span></div>
       </div>
       <div class="tx-amount ${t.type==='income'?'pos':'neg'}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>
     </div>`;
@@ -608,23 +689,6 @@ function renderBudgetPage(txs) {
       </div>`;
     });
   });
-const cashTotal = txs.filter(t => t.type === 'expense' && t.payment === 'cash').reduce((s, t) => s + t.amount, 0);
-const cardTotal = txs.filter(t => t.type === 'expense' && t.payment === 'card').reduce((s, t) => s + t.amount, 0);
-
-html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px">
-  <div style="background:var(--color-background-info);border:0.5px solid #B5D4F4;border-radius:var(--border-radius-md);padding:12px 14px">
-    <div style="font-size:12px;color:var(--color-text-info);display:flex;align-items:center;gap:5px;margin-bottom:4px">
-      <i class="ti ti-credit-card"></i> CB / Virement
-    </div>
-    <div style="font-size:16px;font-weight:500;color:var(--color-text-info)">${cardTotal > 0 ? fmt(cardTotal) : '–'}</div>
-  </div>
-  <div style="background:var(--color-background-success);border:0.5px solid var(--color-border-success);border-radius:var(--border-radius-md);padding:12px 14px">
-    <div style="font-size:12px;color:var(--color-text-success);display:flex;align-items:center;gap:5px;margin-bottom:4px">
-      <i class="ti ti-cash"></i> Espèces
-    </div>
-    <div style="font-size:16px;font-weight:500;color:var(--color-text-success)">${cashTotal > 0 ? fmt(cashTotal) : '–'}</div>
-  </div>
-</div>`;
   el.innerHTML = html;
 }
 
@@ -672,7 +736,8 @@ function changeMonth(dir) {
 }
 
 function openModal() {
-  selectedCatId=null; selectedPayment='card';
+  selectedCatId=null;
+  fillSupportSelect('tx-support', lastSupportId);
   document.getElementById('selected-cat-label').textContent='Choisir une catégorie';
   document.getElementById('selected-cat-label').style.color='var(--color-text-secondary)';
   document.getElementById('tx-date').value=new Date().toISOString().split('T')[0];
@@ -689,13 +754,6 @@ function setType(type) {
   document.getElementById('selected-cat-label').style.color='var(--color-text-secondary)';
   document.getElementById('btn-expense').className='type-btn'+(type==='expense'?' active-expense':'');
   document.getElementById('btn-income').className='type-btn'+(type==='income'?' active-income':'');
-  document.getElementById('payment-group').style.display=type==='expense'?'block':'none';
-}
-
-function setPayment(p) {
-  selectedPayment=p;
-  document.getElementById('btn-card').className='payment-btn'+(p==='card'?' active-card':'');
-  document.getElementById('btn-cash').className='payment-btn'+(p==='cash'?' active-cash':'');
 }
 
 function openCatPicker() {
@@ -737,8 +795,9 @@ function addTransaction() {
   const date=document.getElementById('tx-date').value;
   if(!desc||!amount||amount<=0||!date){alert('Veuillez remplir tous les champs.');return;}
   if(!selectedCatId){alert('Veuillez choisir une catégorie.');return;}
-  const tx={id:Date.now(),type:txType,desc,amount,cat:selectedCatId,date};
-  if(txType==='expense') tx.payment=selectedPayment;
+  const support=document.getElementById('tx-support').value;
+  const tx={id:Date.now(),type:txType,desc,amount,cat:selectedCatId,date,support};
+  lastSupportId=support;
   transactions.push(tx); save(); closeModal(); updateDisplays();
 }
 
@@ -855,12 +914,11 @@ function startEditTransaction() {
   editTxId = t.id;
   editTxType = t.type;
   editSelectedCatId = t.cat;
-  editSelectedPayment = t.payment || 'card';
   document.getElementById('edit-tx-desc').value = t.desc;
   document.getElementById('edit-tx-amount').value = t.amount;
   document.getElementById('edit-tx-date').value = t.date;
   setEditType(t.type);
-  setEditPayment(editSelectedPayment);
+  fillSupportSelect('edit-tx-support', t.support);
   const cat = getCatById(t.cat);
   const lbl = cat ? (cat.group ? cat.group+' · '+cat.label : cat.label) : t.cat;
   const el = document.getElementById('edit-selected-cat-label');
@@ -872,12 +930,6 @@ function setEditType(type) {
   editTxType = type;
   document.getElementById('edit-btn-expense').className = 'type-btn'+(type==='expense'?' active-expense':'');
   document.getElementById('edit-btn-income').className = 'type-btn'+(type==='income'?' active-income':'');
-  document.getElementById('edit-payment-group').style.display = type==='expense'?'block':'none';
-}
-function setEditPayment(p) {
-  editSelectedPayment = p;
-  document.getElementById('edit-btn-card').className = 'payment-btn'+(p==='card'?' active-card':'');
-  document.getElementById('edit-btn-cash').className = 'payment-btn'+(p==='cash'?' active-cash':'');
 }
 function openEditCatPicker() {
   const el = document.getElementById('cat-picker-content');
@@ -918,9 +970,8 @@ function saveEditTransaction() {
   if (!editSelectedCatId) { alert('Veuillez choisir une catégorie.'); return; }
   const idx = transactions.findIndex(t=>t.id===editTxId);
   if (idx === -1) return;
-  transactions[idx] = { ...transactions[idx], type: editTxType, desc, amount, cat: editSelectedCatId, date };
-  if (editTxType === 'expense') transactions[idx].payment = editSelectedPayment;
-  else delete transactions[idx].payment;
+  transactions[idx] = { ...transactions[idx], type: editTxType, desc, amount, cat: editSelectedCatId, date,
+    support: document.getElementById('edit-tx-support').value };
   save(); closeEditModal(); updateDisplays();
 }
 
@@ -983,6 +1034,7 @@ function renderSettings() {
     html += `<button class="add-cat-btn" onclick="openCatEdit(null)"><i class="ti ti-plus"></i> Ajouter une catégorie</button>`;
   }
   document.getElementById('settings-content').innerHTML = html;
+  renderSupportsSettings();
 }
 
 // --- Groupes ---
@@ -1085,14 +1137,110 @@ function deleteCategory(id) {
   saveCategories(); save(); renderSettings(); updateDisplays();
 }
 
+// ===== SUPPORTS : réglages =====
+const SUPPORT_ICONS = ['ti-building-bank','ti-cash','ti-credit-card','ti-wallet','ti-pig-money','ti-ticket',
+                       'ti-fork-knife','ti-gift','ti-coin','ti-device-mobile','ti-shopping-bag','ti-star'];
+let supportEditId = null, supportEditIcon = 'ti-wallet';
+
+function renderSupportsSettings() {
+  const el = document.getElementById('supports-settings');
+  if (!el) return;
+  el.innerHTML = SUPPORTS.map(sp => `<div class="set-cat-row">
+    <div class="cat-row-icon" style="background:#E6F1FB"><i class="ti ${esc(sp.icon)}" style="font-size:15px;color:var(--color-text-primary)"></i></div>
+    <div class="cat-row-name">${esc(sp.label)}<div style="font-size:11px;color:var(--color-text-tertiary)">Solde de départ : ${fmt(Number(sp.initial) || 0)}</div></div>
+    <button class="icon-btn" onclick="openSupportEdit('${esc(sp.id)}')"><i class="ti ti-pencil"></i></button>
+    <button class="icon-btn danger" onclick="deleteSupport('${esc(sp.id)}')"><i class="ti ti-trash"></i></button>
+  </div>`).join('');
+}
+function renderSupportIconPicker() {
+  document.getElementById('support-edit-icons').innerHTML = SUPPORT_ICONS.map(ic =>
+    `<button type="button" class="icon-choice${ic === supportEditIcon ? ' selected' : ''}" onclick="pickSupportIcon('${ic}')"><i class="ti ${ic}"></i></button>`
+  ).join('');
+}
+function pickSupportIcon(ic) { supportEditIcon = ic; renderSupportIconPicker(); }
+function openSupportEdit(id) {
+  const sp = id ? getSupportById(id) : null;
+  supportEditId = sp ? sp.id : null;
+  supportEditIcon = sp ? sp.icon : 'ti-wallet';
+  document.getElementById('support-edit-title').textContent = sp ? 'Modifier le support' : 'Nouveau support';
+  document.getElementById('support-edit-name').value = sp ? sp.label : '';
+  document.getElementById('support-edit-initial').value = sp && sp.initial ? sp.initial : '';
+  renderSupportIconPicker();
+  document.getElementById('support-edit-modal').classList.add('open');
+}
+function closeSupportEdit() { document.getElementById('support-edit-modal').classList.remove('open'); }
+function saveSupportEdit() {
+  const name = cleanName(document.getElementById('support-edit-name').value);
+  if (!name) { alert('Veuillez saisir un nom.'); return; }
+  if (SUPPORTS.some(sp => sp.id !== supportEditId && sp.label.toLowerCase() === name.toLowerCase())) {
+    alert('Un support porte déjà ce nom.'); return;
+  }
+  const raw = parseFloat(document.getElementById('support-edit-initial').value);
+  const initial = isNaN(raw) ? 0 : Math.round(raw * 100) / 100;
+  if (supportEditId) {
+    const sp = getSupportById(supportEditId);
+    if (!sp) return;
+    sp.label = name; sp.icon = supportEditIcon; sp.initial = initial;
+  } else {
+    SUPPORTS.push({ id: 'sup-' + Date.now(), label: name, icon: supportEditIcon, initial });
+  }
+  saveSupports(); closeSupportEdit(); renderSupportsSettings(); updateDisplays();
+}
+function deleteSupport(id) {
+  const sp = getSupportById(id);
+  if (!sp) return;
+  if (SUPPORTS.length <= 1) { alert('Il faut conserver au moins un support.'); return; }
+  const used = transactions.filter(t => t.support === id).length;
+  const target = SUPPORTS.find(x => x.id !== id);
+  const msg = used
+    ? used + ' transaction(s) utilisent « ' + sp.label + ' ». Elles seront déplacées vers « ' + target.label + ' ». Supprimer quand même ?'
+    : 'Supprimer le support « ' + sp.label + ' » ?';
+  if (!confirm(msg)) return;
+  transactions.forEach(t => { if (t.support === id) t.support = target.id; });
+  SUPPORTS = SUPPORTS.filter(x => x.id !== id);
+  if (lastSupportId === id) lastSupportId = null;
+  saveSupports(); save(); renderSupportsSettings(); updateDisplays();
+}
+
+// ===== SUPPORTS : page "état des supports" =====
+function renderSupportsPage() {
+  const el = document.getElementById('supports-page-content');
+  if (!el) return;
+  const monthTxs = getMonthTx();
+  let total = 0;
+  const cards = SUPPORTS.map(sp => {
+    const bal = supportBalance(sp.id);
+    total += bal;
+    const inc = monthTxs.filter(t => t.support === sp.id && t.type === 'income').reduce((a, t) => a + t.amount, 0);
+    const exp = monthTxs.filter(t => t.support === sp.id && t.type === 'expense').reduce((a, t) => a + t.amount, 0);
+    return `<div class="support-card">
+      <div class="support-card-top">
+        <div class="cat-row-icon" style="background:#E6F1FB"><i class="ti ${esc(sp.icon)}" style="font-size:16px;color:var(--color-text-primary)"></i></div>
+        <div class="support-name">${esc(sp.label)}</div>
+        <div class="support-balance ${bal >= 0 ? 'positive' : 'negative'}">${fmt(bal)}</div>
+      </div>
+      <div class="support-month">Ce mois-ci : <span class="pos">${inc > 0 ? '+' : ''}${fmt(inc)}</span> · <span class="neg">${exp > 0 ? '-' : ''}${fmt(exp)}</span></div>
+    </div>`;
+  }).join('');
+  total = Math.round(total * 100) / 100 + 0;
+  el.innerHTML = `<div class="balance-card">
+      <div class="balance-label">Total de tous les supports</div>
+      <div class="balance-amount ${total >= 0 ? 'positive' : 'negative'}">${fmt(total)}</div>
+    </div>
+    <div class="section-title">Solde actuel par support</div>
+    ${cards}
+    <button class="btn-secondary" onclick="showPage('settings')"><i class="ti ti-settings" style="margin-right:6px"></i>Gérer les supports</button>`;
+}
+
 // ===== SAUVEGARDE : export / import =====
 function exportData() {
   const payload = {
     app: 'mon-budget',
-    version: 1,
+    version: 2,
     exportedAt: new Date().toISOString(),
     transactions: transactions,
     budgets: budgets,
+    supports: SUPPORTS,
     categories: { groups: GROUPS, expense: EXPENSE_CATS, income: INCOME_CATS }
   };
   const json = JSON.stringify(payload, null, 2);
@@ -1115,24 +1263,43 @@ function downloadFile(file) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
+function validTx(t) {
+  return !!t && typeof t === 'object' && Number.isFinite(t.id) && (t.type === 'income' || t.type === 'expense')
+    && typeof t.desc === 'string' && Number.isFinite(t.amount) && typeof t.cat === 'string'
+    && /^\d{4}-\d{2}-\d{2}$/.test(t.date || '');
+}
+function validCat(x) {
+  return !!x && /^[\w-]+$/.test(String(x.id)) && typeof x.label === 'string' && !/[<>]/.test(x.label)
+    && /^ti-[\w-]+$/.test(String(x.icon)) && (!x.color || /^#[0-9a-fA-F]{3,8}$/.test(x.color));
+}
 function importData(file) {
   if (!file) return;
   const reader = new FileReader();
   reader.onload = () => {
     let d;
     try { d = JSON.parse(reader.result); } catch (e) { alert('Fichier invalide : impossible de lire la sauvegarde.'); return; }
-    const okTx = Array.isArray(d.transactions);
-    const okBud = d.budgets && typeof d.budgets === 'object' && !Array.isArray(d.budgets);
+    if (!d || typeof d !== 'object') { alert('Ce fichier ne ressemble pas à une sauvegarde de Mon budget.'); return; }
     const c = d.categories;
-    const okCats = c && Array.isArray(c.groups) && Array.isArray(c.expense) && Array.isArray(c.income);
-    if (d.app !== 'mon-budget' || !okTx || !okBud || !okCats) { alert('Ce fichier ne ressemble pas à une sauvegarde de Mon budget.'); return; }
+    const okTx = Array.isArray(d.transactions) && d.transactions.every(validTx);
+    const okBud = d.budgets && typeof d.budgets === 'object' && !Array.isArray(d.budgets);
+    const okCats = !!c && Array.isArray(c.groups) && Array.isArray(c.expense) && Array.isArray(c.income)
+      && c.groups.every(g => typeof g === 'string' && !/[<>]/.test(g))
+      && c.expense.every(x => validCat(x) && typeof x.group === 'string' && !/[<>]/.test(x.group))
+      && c.income.every(validCat);
+    // Anciennes sauvegardes (sans supports) : supports par défaut + conversion CB/Espèces
+    const sup = d.supports === undefined ? DEFAULT_SUPPORTS.map(sp => ({ ...sp })) : normalizeSupports(d.supports);
+    if (d.app !== 'mon-budget' || !okTx || !okBud || !okCats || !sup) {
+      alert('Ce fichier ne ressemble pas à une sauvegarde de Mon budget.'); return;
+    }
+    migrateTxList(d.transactions, sup);
     const msg = 'Remplacer toutes les données actuelles par cette sauvegarde ?\n\n'
-      + d.transactions.length + ' transaction(s)\nSauvegarde du ' + String(d.exportedAt || '').slice(0, 10)
+      + d.transactions.length + ' transaction(s), ' + sup.length + ' support(s)\nSauvegarde du ' + String(d.exportedAt || '').slice(0, 10)
       + '\n\nLes données actuelles de cet appareil seront écrasées.';
     if (!confirm(msg)) return;
     try {
       localStorage.setItem('gestion_tx_v4', JSON.stringify(d.transactions));
       localStorage.setItem('gestion_budgets_v4', JSON.stringify(d.budgets));
+      localStorage.setItem('gestion_supports_v1', JSON.stringify(sup));
       localStorage.setItem('gestion_cats_v1', JSON.stringify({ groups: c.groups, expense: c.expense, income: c.income }));
     } catch (e) { alert('Impossible d\'enregistrer les données sur cet appareil.'); return; }
     alert('Sauvegarde restaurée.');
@@ -1300,8 +1467,8 @@ function renderAnalyse() {
 
   // ===== Bouton retour du téléphone =====
 let currentPage = 'main';
-const TAB_PAGES = ['main', 'budget'];
-const OVERLAYS = ['modal', 'budget-modal', 'cat-picker', 'edit-modal', 'cat-edit-modal'];
+const TAB_PAGES = ['main', 'budget', 'supports'];
+const OVERLAYS = ['modal', 'budget-modal', 'cat-picker', 'edit-modal', 'cat-edit-modal', 'support-edit-modal'];
 let overlayStack = [];   // fenêtres ouvertes, dans l'ordre d'ouverture
 let popClosing = false;  // fermeture déclenchée par le bouton retour
 let ignorePops = 0;      // retours déclenchés par le code (fermeture normale d'une fenêtre)
