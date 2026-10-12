@@ -168,16 +168,16 @@ body { background: #f0f0f0; }
 .dash-tile.clickable { cursor: pointer; }
 .dash-tile.open { grid-column: 1 / -1; }
 .dash-tile-name .ti { margin-left: 4px; font-size: 12px; vertical-align: middle; }
-.dash-env-list { margin-top: 6px; border-top: 0.5px solid var(--color-border-tertiary); }
-.dash-env-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; font-size: 14px; border-bottom: 0.5px solid var(--color-border-tertiary); }
-.dash-env-row:last-child { border-bottom: none; }
-.dash-env-name { color: var(--color-text-secondary); min-width: 0; overflow-wrap: anywhere; }
-.dash-env-bal { font-weight: 500; white-space: nowrap; }
-.dash-env-bal.positive { color: var(--color-text-success); }
-.dash-env-bal.negative { color: var(--color-text-danger); }
-.form-group .env-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
-.form-group .env-row input.env-name { flex: 1; min-width: 0; width: auto; }
-.form-group .env-row input.env-initial { width: 96px; flex: none; }
+.dash-pocket-list { margin-top: 6px; border-top: 0.5px solid var(--color-border-tertiary); }
+.dash-pocket-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; font-size: 14px; border-bottom: 0.5px solid var(--color-border-tertiary); }
+.dash-pocket-row:last-child { border-bottom: none; }
+.dash-pocket-name { color: var(--color-text-secondary); min-width: 0; overflow-wrap: anywhere; }
+.dash-pocket-bal { font-weight: 500; white-space: nowrap; }
+.dash-pocket-bal.positive { color: var(--color-text-success); }
+.dash-pocket-bal.negative { color: var(--color-text-danger); }
+.form-group .pocket-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.form-group .pocket-row input.pocket-name { flex: 1; min-width: 0; width: auto; }
+.form-group .pocket-row input.pocket-initial { width: 96px; flex: none; }
 .form-group select { width: 100%; padding: 10px 12px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: var(--color-background-secondary); color: var(--color-text-primary); font-size: 15px; font-family: var(--font-sans); }
 .icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
 .icon-choice { aspect-ratio: 1; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: var(--color-background-secondary); font-size: 18px; color: var(--color-text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; }
@@ -318,17 +318,17 @@ body { background: #f0f0f0; }
       <label id="lbl-support">Support</label>
       <select id="tx-support" onchange="onSupportPick('', 'from')"></select>
     </div>
-    <div class="form-group" id="grp-env" style="display:none">
-      <label id="lbl-env">Poche</label>
-      <select id="tx-env"></select>
+    <div class="form-group" id="grp-pocket" style="display:none">
+      <label id="lbl-pocket">Poche</label>
+      <select id="tx-pocket"></select>
     </div>
     <div class="form-group" id="grp-support-to" style="display:none">
       <label>Support cible</label>
       <select id="tx-support-to" onchange="onSupportPick('', 'to')"></select>
     </div>
-    <div class="form-group" id="grp-env-to" style="display:none">
+    <div class="form-group" id="grp-pocket-to" style="display:none">
       <label>Poche cible</label>
-      <select id="tx-env-to"></select>
+      <select id="tx-pocket-to"></select>
     </div>
     <div class="form-group">
       <label>Date</label>
@@ -394,17 +394,17 @@ body { background: #f0f0f0; }
       <label id="edit-lbl-support">Support</label>
       <select id="edit-tx-support" onchange="onSupportPick('edit-', 'from')"></select>
     </div>
-    <div class="form-group" id="edit-grp-env" style="display:none">
-      <label id="edit-lbl-env">Poche</label>
-      <select id="edit-tx-env"></select>
+    <div class="form-group" id="edit-grp-pocket" style="display:none">
+      <label id="edit-lbl-pocket">Poche</label>
+      <select id="edit-tx-pocket"></select>
     </div>
     <div class="form-group" id="edit-grp-support-to" style="display:none">
       <label>Support cible</label>
       <select id="edit-tx-support-to" onchange="onSupportPick('edit-', 'to')"></select>
     </div>
-    <div class="form-group" id="edit-grp-env-to" style="display:none">
+    <div class="form-group" id="edit-grp-pocket-to" style="display:none">
       <label>Poche cible</label>
-      <select id="edit-tx-env-to"></select>
+      <select id="edit-tx-pocket-to"></select>
     </div>
     <div class="form-group">
       <label>Date</label>
@@ -457,8 +457,8 @@ body { background: #f0f0f0; }
     <div class="form-group">
       <label>Poches (facultatif)</label>
       <p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:8px;line-height:1.4">Divisez ce support en poches. Le solde du support reste le total ; touchez le support dans « Soldes » pour voir le détail. Le montant de départ de chaque poche est facultatif : ce qui n'est pas réparti apparaît en « Non affecté ».</p>
-      <div id="support-edit-envs"></div>
-      <button type="button" class="add-cat-btn" onclick="addEnvRow()"><i class="ti ti-plus"></i> Ajouter une poche</button>
+      <div id="support-edit-pockets"></div>
+      <button type="button" class="add-cat-btn" onclick="addPocketRow()"><i class="ti ti-plus"></i> Ajouter une poche</button>
     </div>
     <div class="form-group">
       <label>Icône</label>
@@ -543,19 +543,19 @@ try { budgets = JSON.parse(localStorage.getItem('gestion_budgets_v4')||'{}'); } 
 
 // ===== SUPPORTS (compte bancaire, espèces, tickets restaurant...) =====
 const DEFAULT_SUPPORTS = [
-  { id:'sup-card', label:'Compte bancaire', icon:'ti-building-bank', initial:0, envelopes:[] },
-  { id:'sup-cash', label:'Espèces',         icon:'ti-cash',          initial:0, envelopes:[] }
+  { id:'sup-card', label:'Compte bancaire', icon:'ti-building-bank', initial:0, pockets:[] },
+  { id:'sup-cash', label:'Espèces',         icon:'ti-cash',          initial:0, pockets:[] }
 ];
 let SUPPORTS = [];
 let lastSupportId = null;
-let lastEnvBySupport = {};            // dernière poche choisie, par support (le temps de la session)
+let lastPocketBySupport = {};            // dernière poche choisie, par support (le temps de la session)
 let expandedSupports = new Set();     // supports dépliés dans « Soldes »
 
 // Poches : subdivision facultative d'un support. Le solde du support reste le total.
-function envsOf(sp) { return (sp && Array.isArray(sp.envelopes)) ? sp.envelopes : []; }
-function getEnvelope(sp, envId) { return envsOf(sp).find(e => e.id === envId) || null; }
-function newEnvId() { return 'env-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
-function normalizeEnvelopes(arr) {
+function pocketsOf(sp) { return (sp && Array.isArray(sp.pockets)) ? sp.pockets : []; }
+function getPocket(sp, pocketId) { return pocketsOf(sp).find(e => e.id === pocketId) || null; }
+function newPocketId() { return 'pocket-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function normalizePockets(arr) {
   const out = [], seenIds = new Set(), seenLabels = new Set();
   if (!Array.isArray(arr)) return out;
   for (const e of arr) {
@@ -581,7 +581,8 @@ function normalizeSupports(arr) {
     if (!label) return null;
     const icon = /^ti-[\w-]+$/.test(String(sp.icon || '')) ? sp.icon : 'ti-wallet';
     const initial = Number.isFinite(Number(sp.initial)) ? Math.round(Number(sp.initial) * 100) / 100 : 0;
-    seen.add(id); out.push({ id, label, icon, initial, envelopes: normalizeEnvelopes(sp.envelopes) });
+    // Anciennes données : les poches s'appelaient « envelopes »
+    seen.add(id); out.push({ id, label, icon, initial, pockets: normalizePockets(sp.pockets !== undefined ? sp.pockets : sp.envelopes) });
   }
   return out.length ? out : null;
 }
@@ -589,9 +590,13 @@ function saveSupports() {
   try { localStorage.setItem('gestion_supports_v1', JSON.stringify(SUPPORTS)); } catch (e) {}
 }
 function loadSupports() {
-  let saved = null;
-  try { saved = normalizeSupports(JSON.parse(localStorage.getItem('gestion_supports_v1'))); } catch (e) {}
-  if (saved) { SUPPORTS = saved; }
+  let raw = null, saved = null;
+  try { raw = JSON.parse(localStorage.getItem('gestion_supports_v1')); saved = normalizeSupports(raw); } catch (e) {}
+  if (saved) {
+    SUPPORTS = saved;
+    // Ancien format (« envelopes ») : on réécrit tout de suite au nouveau format
+    if (Array.isArray(raw) && raw.some(sp => sp && 'envelopes' in sp)) saveSupports();
+  }
   else { SUPPORTS = DEFAULT_SUPPORTS.map(sp => ({ ...sp })); saveSupports(); }
 }
 // Anciennes données : "payment" (card/cash) devient un support. Les recettes sans support vont sur le premier support.
@@ -600,14 +605,18 @@ function migrateTxList(list, supports) {
   const first = supports[0].id;
   const byId = new Map(supports.map(sp => [sp.id, sp]));
   // Une poche n'est valable que si elle existe bien dans le support concerné
-  const envOk = (supId, envId) => typeof envId === 'string' && !!getEnvelope(byId.get(supId), envId);
+  const pocketOk = (supId, pocketId) => typeof pocketId === 'string' && !!getPocket(byId.get(supId), pocketId);
   let changed = false;
   list.forEach(t => {
+    // Anciennes données : « env », « fromEnv » et « toEnv » deviennent « pocket », « fromPocket » et « toPocket »
+    if ('env' in t) { if (t.pocket === undefined) t.pocket = t.env; delete t.env; changed = true; }
+    if ('fromEnv' in t) { if (t.fromPocket === undefined) t.fromPocket = t.fromEnv; delete t.fromEnv; changed = true; }
+    if ('toEnv' in t) { if (t.toPocket === undefined) t.toPocket = t.toEnv; delete t.toEnv; changed = true; }
     if (t.type === 'transfer') {
       if (!valid.has(t.from)) { t.from = first; changed = true; }
       if (!valid.has(t.to)) { t.to = first; changed = true; }
-      if (t.fromEnv !== undefined && !envOk(t.from, t.fromEnv)) { delete t.fromEnv; changed = true; }
-      if (t.toEnv !== undefined && !envOk(t.to, t.toEnv)) { delete t.toEnv; changed = true; }
+      if (t.fromPocket !== undefined && !pocketOk(t.from, t.fromPocket)) { delete t.fromPocket; changed = true; }
+      if (t.toPocket !== undefined && !pocketOk(t.to, t.toPocket)) { delete t.toPocket; changed = true; }
       return;
     }
     if (!t.support || !valid.has(t.support)) {
@@ -616,7 +625,7 @@ function migrateTxList(list, supports) {
       changed = true;
     }
     if ('payment' in t) { delete t.payment; changed = true; }
-    if (t.env !== undefined && !envOk(t.support, t.env)) { delete t.env; changed = true; }
+    if (t.pocket !== undefined && !pocketOk(t.support, t.pocket)) { delete t.pocket; changed = true; }
   });
   return changed;
 }
@@ -643,21 +652,21 @@ function supportBalance(id) {
   });
   return Math.round(b * 100) / 100 + 0;
 }
-// Solde d'une poche (envId) ou de la part « non affectée » du support (envId = null).
+// Solde d'une poche (pocketId) ou de la part « non affectée » du support (pocketId = null).
 // Non affecté = solde de départ du support moins les départs des poches, plus les mouvements sans poche.
-function bucketBalance(supId, envId) {
+function bucketBalance(supId, pocketId) {
   const sp = getSupportById(supId);
   if (!sp) return 0;
   let b;
-  if (envId) { const e = getEnvelope(sp, envId); b = e ? (Number(e.initial) || 0) : 0; }
-  else b = (Number(sp.initial) || 0) - envsOf(sp).reduce((s, e) => s + (Number(e.initial) || 0), 0);
+  if (pocketId) { const e = getPocket(sp, pocketId); b = e ? (Number(e.initial) || 0) : 0; }
+  else b = (Number(sp.initial) || 0) - pocketsOf(sp).reduce((s, e) => s + (Number(e.initial) || 0), 0);
   const today = todayStr();
   transactions.forEach(t => {
     if (t.date > today) return;
     if (t.type === 'transfer') {
-      if (t.from === supId && (t.fromEnv || null) === envId) b -= t.amount;
-      if (t.to === supId && (t.toEnv || null) === envId) b += t.amount;
-    } else if (t.support === supId && (t.env || null) === envId) b += t.type === 'income' ? t.amount : -t.amount;
+      if (t.from === supId && (t.fromPocket || null) === pocketId) b -= t.amount;
+      if (t.to === supId && (t.toPocket || null) === pocketId) b += t.amount;
+    } else if (t.support === supId && (t.pocket || null) === pocketId) b += t.type === 'income' ? t.amount : -t.amount;
   });
   return Math.round(b * 100) / 100 + 0;
 }
@@ -672,30 +681,30 @@ function fillSupportSelect(selectId, selected) {
 }
 // Liste des poches d'un support dans un <select> ("" = sans poche).
 // selected : id de poche, '' pour « sans poche », null/undefined pour le choix par défaut.
-function fillEnvSelect(selectId, supportId, selected) {
+function fillPocketSelect(selectId, supportId, selected) {
   const sel = document.getElementById(selectId);
-  const envs = envsOf(getSupportById(supportId));
-  sel.innerHTML = envs.map(e => `<option value="${esc(e.id)}">${esc(e.label)}</option>`).join('')
+  const pockets = pocketsOf(getSupportById(supportId));
+  sel.innerHTML = pockets.map(e => `<option value="${esc(e.id)}">${esc(e.label)}</option>`).join('')
     + '<option value="">Sans poche</option>';
   let v = selected;
-  if (v == null) v = lastEnvBySupport[supportId];
-  if (v == null || (v !== '' && !envs.some(e => e.id === v))) v = envs.length ? envs[0].id : '';
+  if (v == null) v = lastPocketBySupport[supportId];
+  if (v == null || (v !== '' && !pockets.some(e => e.id === v))) v = pockets.length ? pockets[0].id : '';
   sel.value = v;
 }
 // Les listes de poches n'apparaissent que si le support choisi en a
-function updateEnvVisibility(p) {
+function updatePocketVisibility(p) {
   const type = p ? editTxType : txType;
   const has = id => document.getElementById(id).options.length > 1;
-  document.getElementById(p + 'grp-env').style.display = has(p + 'tx-env') ? 'block' : 'none';
-  document.getElementById(p + 'grp-env-to').style.display = (type === 'transfer' && has(p + 'tx-env-to')) ? 'block' : 'none';
+  document.getElementById(p + 'grp-pocket').style.display = has(p + 'tx-pocket') ? 'block' : 'none';
+  document.getElementById(p + 'grp-pocket-to').style.display = (type === 'transfer' && has(p + 'tx-pocket-to')) ? 'block' : 'none';
 }
 function onSupportPick(p, side) {
   const q = id => document.getElementById(p + id);
-  if (side === 'to') fillEnvSelect(p + 'tx-env-to', q('tx-support-to').value, null);
-  else fillEnvSelect(p + 'tx-env', q('tx-support').value, null);
-  updateEnvVisibility(p);
+  if (side === 'to') fillPocketSelect(p + 'tx-pocket-to', q('tx-support-to').value, null);
+  else fillPocketSelect(p + 'tx-pocket', q('tx-support').value, null);
+  updatePocketVisibility(p);
 }
-function readEnv(selectId) {
+function readPocket(selectId) {
   const sel = document.getElementById(selectId);
   return sel.options.length > 1 ? sel.value : '';
 }
@@ -724,11 +733,11 @@ function updateDisplays() {
   renderAnalyse();
 }
 
-function supportBadge(id, envId) {
+function supportBadge(id, pocketId) {
   const sp = getSupportById(id);
   if (!sp) return '';
-  const env = envId ? getEnvelope(sp, envId) : null;
-  return `<span class="tx-payment-badge card"><i class="ti ${esc(sp.icon)}" style="font-size:10px"></i>${esc(sp.label)}${env ? ' · ' + esc(env.label) : ''}</span>`;
+  const pocket = pocketId ? getPocket(sp, pocketId) : null;
+  return `<span class="tx-payment-badge card"><i class="ti ${esc(sp.icon)}" style="font-size:10px"></i>${esc(sp.label)}${pocket ? ' · ' + esc(pocket.label) : ''}</span>`;
 }
 
 function renderList(el, txs, withActions) {
@@ -737,10 +746,10 @@ function renderList(el, txs, withActions) {
     const cat=getCatById(t.cat);
     let icon=cat?cat.icon:'ti-box', bg=cat?cat.color:'#F1EFE8';
     let catLabel=cat?(cat.group?cat.group+' · '+cat.label:cat.label):'Catégorie supprimée';
-    let name=esc(t.desc), badges=supportBadge(t.support, t.env), amountHtml;
+    let name=esc(t.desc), badges=supportBadge(t.support, t.pocket), amountHtml;
     if (t.type==='transfer') {
       icon='ti-arrows-exchange'; bg='#E6F1FB'; catLabel=''; name='Transfert';
-      badges=supportBadge(t.from, t.fromEnv)+' <i class="ti ti-arrow-right" style="font-size:11px"></i> '+supportBadge(t.to, t.toEnv);
+      badges=supportBadge(t.from, t.fromPocket)+' <i class="ti ti-arrow-right" style="font-size:11px"></i> '+supportBadge(t.to, t.toPocket);
       amountHtml=`<div class="tx-amount" style="color:var(--color-text-info)">${fmt(t.amount)}</div>`;
     } else {
       if (t.type==='income' && !cat) { icon='ti-arrow-down'; bg='#EAF3DE'; catLabel='Recette'; }
@@ -864,8 +873,8 @@ function openModal() {
   selectedCatId=null;
   fillSupportSelect('tx-support', lastSupportId);
   fillSupportSelect('tx-support-to', defaultToSupport(document.getElementById('tx-support').value));
-  fillEnvSelect('tx-env', document.getElementById('tx-support').value, null);
-  fillEnvSelect('tx-env-to', document.getElementById('tx-support-to').value, null);
+  fillPocketSelect('tx-pocket', document.getElementById('tx-support').value, null);
+  fillPocketSelect('tx-pocket-to', document.getElementById('tx-support-to').value, null);
   document.getElementById('selected-cat-label').textContent='Choisir une catégorie';
   document.getElementById('selected-cat-label').style.color='var(--color-text-secondary)';
   document.getElementById('tx-date').value=todayStr();
@@ -892,8 +901,8 @@ function applyTypeUI(p, type) {
   q('grp-cat').style.display = type==='expense' ? 'block' : 'none';
   q('grp-support-to').style.display = type==='transfer' ? 'block' : 'none';
   q('lbl-support').textContent = type==='transfer' ? 'Support de départ' : 'Support';
-  q('lbl-env').textContent = type==='transfer' ? 'Poche de départ' : 'Poche';
-  updateEnvVisibility(p);
+  q('lbl-pocket').textContent = type==='transfer' ? 'Poche de départ' : 'Poche';
+  updatePocketVisibility(p);
 }
 
 function openCatPicker() {
@@ -936,22 +945,22 @@ function addTransaction() {
   let tx;
   if (txType==='transfer') {
     const to=document.getElementById('tx-support-to').value;
-    const fromEnv=readEnv('tx-env'), toEnv=readEnv('tx-env-to');
+    const fromPocket=readPocket('tx-pocket'), toPocket=readPocket('tx-pocket-to');
     if(!amount||amount<=0||!date){alert('Veuillez remplir tous les champs.');return;}
-    if(support===to&&fromEnv===toEnv){alert('Le départ et la cible doivent être différents (support ou poche).');return;}
+    if(support===to&&fromPocket===toPocket){alert('Le départ et la cible doivent être différents (support ou poche).');return;}
     tx={id:Date.now(),type:'transfer',desc:'',amount,date,from:support,to};
-    if(fromEnv) tx.fromEnv=fromEnv;
-    if(toEnv) tx.toEnv=toEnv;
+    if(fromPocket) tx.fromPocket=fromPocket;
+    if(toPocket) tx.toPocket=toPocket;
   } else {
     const desc=document.getElementById('tx-desc').value.trim();
     if(!desc||!amount||amount<=0||!date){alert('Veuillez remplir tous les champs.');return;}
     if(txType==='expense'&&!selectedCatId){alert('Veuillez choisir une catégorie.');return;}
-    const env=readEnv('tx-env');
+    const pocket=readPocket('tx-pocket');
     tx={id:Date.now(),type:txType,desc,amount,date,support};
-    if(env) tx.env=env;
+    if(pocket) tx.pocket=pocket;
     if(txType==='expense') tx.cat=selectedCatId;
     lastSupportId=support;
-    lastEnvBySupport[support]=env;
+    lastPocketBySupport[support]=pocket;
   }
   transactions.push(tx); save(); closeModal(); updateDisplays();
 }
@@ -1076,8 +1085,8 @@ function startEditTransaction() {
   fillSupportSelect('edit-tx-support', from);
   fillSupportSelect('edit-tx-support-to', t.type==='transfer' ? t.to : defaultToSupport(from));
   // '' = « Sans poche » : une ancienne transaction sans poche le reste tant qu'on n'en choisit pas une
-  fillEnvSelect('edit-tx-env', document.getElementById('edit-tx-support').value, (t.type==='transfer' ? t.fromEnv : t.env) || '');
-  fillEnvSelect('edit-tx-env-to', document.getElementById('edit-tx-support-to').value, t.type==='transfer' ? (t.toEnv || '') : null);
+  fillPocketSelect('edit-tx-pocket', document.getElementById('edit-tx-support').value, (t.type==='transfer' ? t.fromPocket : t.pocket) || '');
+  fillPocketSelect('edit-tx-pocket-to', document.getElementById('edit-tx-support-to').value, t.type==='transfer' ? (t.toPocket || '') : null);
   const cat = getCatById(editSelectedCatId);
   const el = document.getElementById('edit-selected-cat-label');
   if (cat) { el.textContent = cat.group ? cat.group+' · '+cat.label : cat.label; el.style.color = 'var(--color-text-primary)'; }
@@ -1137,19 +1146,19 @@ function saveEditTransaction() {
   let nt;
   if (editTxType === 'transfer') {
     const to = document.getElementById('edit-tx-support-to').value;
-    const fromEnv = readEnv('edit-tx-env'), toEnv = readEnv('edit-tx-env-to');
+    const fromPocket = readPocket('edit-tx-pocket'), toPocket = readPocket('edit-tx-pocket-to');
     if (!amount||amount<=0||!date) { alert('Veuillez remplir tous les champs.'); return; }
-    if (support === to && fromEnv === toEnv) { alert('Le départ et la cible doivent être différents (support ou poche).'); return; }
+    if (support === to && fromPocket === toPocket) { alert('Le départ et la cible doivent être différents (support ou poche).'); return; }
     nt = { id: old.id, type: 'transfer', desc: '', amount, date, from: support, to };
-    if (fromEnv) nt.fromEnv = fromEnv;
-    if (toEnv) nt.toEnv = toEnv;
+    if (fromPocket) nt.fromPocket = fromPocket;
+    if (toPocket) nt.toPocket = toPocket;
   } else {
     const desc = document.getElementById('edit-tx-desc').value.trim();
     if (!desc||!amount||amount<=0||!date) { alert('Veuillez remplir tous les champs.'); return; }
     if (editTxType === 'expense' && !editSelectedCatId) { alert('Veuillez choisir une catégorie.'); return; }
-    const env = readEnv('edit-tx-env');
+    const pocket = readPocket('edit-tx-pocket');
     nt = { id: old.id, type: editTxType, desc, amount, date, support };
-    if (env) nt.env = env;
+    if (pocket) nt.pocket = pocket;
     if (editTxType === 'expense') nt.cat = editSelectedCatId;
     else if (old.type === 'income' && old.cat) nt.cat = old.cat;   // on garde l'ancienne catégorie d'une recette existante
   }
@@ -1326,7 +1335,7 @@ function renderSupportsSettings() {
   if (!el) return;
   el.innerHTML = SUPPORTS.map(sp => `<div class="set-cat-row">
     <div class="cat-row-icon" style="background:#E6F1FB"><i class="ti ${esc(sp.icon)}" style="font-size:15px;color:var(--color-text-primary)"></i></div>
-    <div class="cat-row-name">${esc(sp.label)}<div style="font-size:11px;color:var(--color-text-tertiary)">Solde de départ : ${fmt(Number(sp.initial) || 0)}</div>${envsOf(sp).length ? `<div style="font-size:11px;color:var(--color-text-tertiary)">Poches : ${envsOf(sp).map(e => esc(e.label)).join(', ')}</div>` : ''}</div>
+    <div class="cat-row-name">${esc(sp.label)}<div style="font-size:11px;color:var(--color-text-tertiary)">Solde de départ : ${fmt(Number(sp.initial) || 0)}</div>${pocketsOf(sp).length ? `<div style="font-size:11px;color:var(--color-text-tertiary)">Poches : ${pocketsOf(sp).map(e => esc(e.label)).join(', ')}</div>` : ''}</div>
     <button class="icon-btn" onclick="openSupportEdit('${esc(sp.id)}')"><i class="ti ti-pencil"></i></button>
     <button class="icon-btn danger" onclick="deleteSupport('${esc(sp.id)}')"><i class="ti ti-trash"></i></button>
   </div>`).join('');
@@ -1344,22 +1353,22 @@ function openSupportEdit(id) {
   document.getElementById('support-edit-title').textContent = sp ? 'Modifier le support' : 'Nouveau support';
   document.getElementById('support-edit-name').value = sp ? sp.label : '';
   document.getElementById('support-edit-initial').value = sp && sp.initial ? sp.initial : '';
-  document.getElementById('support-edit-envs').innerHTML = envsOf(sp).map(envRowHtml).join('');
+  document.getElementById('support-edit-pockets').innerHTML = pocketsOf(sp).map(pocketRowHtml).join('');
   renderSupportIconPicker();
   document.getElementById('support-edit-modal').classList.add('open');
 }
-function envRowHtml(env) {
-  return `<div class="env-row" data-id="${esc(env.id)}">
-    <input type="text" class="env-name" placeholder="Nom de la poche" maxlength="40" value="${esc(env.label)}" />
-    <input type="number" class="env-initial" step="0.01" placeholder="Départ €" value="${env.initial ? esc(env.initial) : ''}" />
+function pocketRowHtml(pocket) {
+  return `<div class="pocket-row" data-id="${esc(pocket.id)}">
+    <input type="text" class="pocket-name" placeholder="Nom de la poche" maxlength="40" value="${esc(pocket.label)}" />
+    <input type="number" class="pocket-initial" step="0.01" placeholder="Départ €" value="${pocket.initial ? esc(pocket.initial) : ''}" />
     <button type="button" class="icon-btn danger" onclick="this.parentNode.remove()"><i class="ti ti-trash"></i></button>
   </div>`;
 }
-function addEnvRow() {
-  const box = document.getElementById('support-edit-envs');
-  box.insertAdjacentHTML('beforeend', envRowHtml({ id: '', label: '', initial: 0 }));
-  const rows = box.querySelectorAll('.env-row');
-  rows[rows.length - 1].querySelector('.env-name').focus();
+function addPocketRow() {
+  const box = document.getElementById('support-edit-pockets');
+  box.insertAdjacentHTML('beforeend', pocketRowHtml({ id: '', label: '', initial: 0 }));
+  const rows = box.querySelectorAll('.pocket-row');
+  rows[rows.length - 1].querySelector('.pocket-name').focus();
 }
 function closeSupportEdit() { document.getElementById('support-edit-modal').classList.remove('open'); }
 function saveSupportEdit() {
@@ -1372,42 +1381,42 @@ function saveSupportEdit() {
   const initial = isNaN(raw) ? 0 : Math.round(raw * 100) / 100;
 
   // Poches saisies (les lignes sans nom sont ignorées)
-  const envelopes = [], seenEnv = new Set();
-  for (const row of document.querySelectorAll('#support-edit-envs .env-row')) {
-    const label = cleanName(row.querySelector('.env-name').value);
-    const rawI = parseFloat(row.querySelector('.env-initial').value);
-    const envInitial = isNaN(rawI) ? 0 : Math.round(rawI * 100) / 100;
+  const pockets = [], seenPocket = new Set();
+  for (const row of document.querySelectorAll('#support-edit-pockets .pocket-row')) {
+    const label = cleanName(row.querySelector('.pocket-name').value);
+    const rawI = parseFloat(row.querySelector('.pocket-initial').value);
+    const pocketInitial = isNaN(rawI) ? 0 : Math.round(rawI * 100) / 100;
     if (!label) {
-      if (envInitial) { alert('Veuillez donner un nom à chaque poche.'); return; }
+      if (pocketInitial) { alert('Veuillez donner un nom à chaque poche.'); return; }
       continue;
     }
-    if (seenEnv.has(label.toLowerCase())) { alert('Deux poches portent le même nom.'); return; }
-    seenEnv.add(label.toLowerCase());
-    envelopes.push({ id: row.dataset.id || newEnvId(), label, initial: envInitial });
+    if (seenPocket.has(label.toLowerCase())) { alert('Deux poches portent le même nom.'); return; }
+    seenPocket.add(label.toLowerCase());
+    pockets.push({ id: row.dataset.id || newPocketId(), label, initial: pocketInitial });
   }
 
   if (supportEditId) {
     const sp = getSupportById(supportEditId);
     if (!sp) return;
     // Une poche supprimée : ses transactions restent sur le support, « sans poche »
-    const removed = new Set(envsOf(sp).filter(e => !envelopes.some(n => n.id === e.id)).map(e => e.id));
+    const removed = new Set(pocketsOf(sp).filter(e => !pockets.some(n => n.id === e.id)).map(e => e.id));
     if (removed.size) {
       const used = transactions.filter(t => t.type === 'transfer'
-        ? (t.from === sp.id && removed.has(t.fromEnv)) || (t.to === sp.id && removed.has(t.toEnv))
-        : t.support === sp.id && removed.has(t.env)).length;
+        ? (t.from === sp.id && removed.has(t.fromPocket)) || (t.to === sp.id && removed.has(t.toPocket))
+        : t.support === sp.id && removed.has(t.pocket)).length;
       if (used && !confirm(used + ' transaction(s) utilisent une poche supprimée. Elles seront conservées sur « ' + sp.label + ' » sans poche. Continuer ?')) return;
       transactions.forEach(t => {
         if (t.type === 'transfer') {
-          if (t.from === sp.id && removed.has(t.fromEnv)) delete t.fromEnv;
-          if (t.to === sp.id && removed.has(t.toEnv)) delete t.toEnv;
-        } else if (t.support === sp.id && removed.has(t.env)) delete t.env;
+          if (t.from === sp.id && removed.has(t.fromPocket)) delete t.fromPocket;
+          if (t.to === sp.id && removed.has(t.toPocket)) delete t.toPocket;
+        } else if (t.support === sp.id && removed.has(t.pocket)) delete t.pocket;
       });
-      removed.forEach(id => { if (lastEnvBySupport[sp.id] === id) delete lastEnvBySupport[sp.id]; });
+      removed.forEach(id => { if (lastPocketBySupport[sp.id] === id) delete lastPocketBySupport[sp.id]; });
       save();
     }
-    sp.label = name; sp.icon = supportEditIcon; sp.initial = initial; sp.envelopes = envelopes;
+    sp.label = name; sp.icon = supportEditIcon; sp.initial = initial; sp.pockets = pockets;
   } else {
-    SUPPORTS.push({ id: 'sup-' + Date.now(), label: name, icon: supportEditIcon, initial, envelopes });
+    SUPPORTS.push({ id: 'sup-' + Date.now(), label: name, icon: supportEditIcon, initial, pockets });
   }
   saveSupports(); closeSupportEdit(); renderSupportsSettings(); updateDisplays();
 }
@@ -1423,7 +1432,7 @@ function deleteSupport(id) {
   const pointless = new Set(transactions.filter(t => t.type === 'transfer'
     && (t.from === id || t.to === id)
     && (t.from === id ? target.id : t.from) === (t.to === id ? target.id : t.to)
-    && (t.from === id ? '' : (t.fromEnv || '')) === (t.to === id ? '' : (t.toEnv || ''))).map(t => t.id));
+    && (t.from === id ? '' : (t.fromPocket || '')) === (t.to === id ? '' : (t.toPocket || ''))).map(t => t.id));
   let msg = moved
     ? moved + ' transaction(s) utilisent « ' + sp.label + ' ». Elles seront déplacées vers « ' + target.label + ' ».'
     : 'Supprimer le support « ' + sp.label + ' » ?';
@@ -1432,20 +1441,20 @@ function deleteSupport(id) {
   if (!confirm(msg)) return;
   transactions.forEach(t => {
     if (t.type === 'transfer') {
-      if (t.from === id) { t.from = target.id; delete t.fromEnv; }
-      if (t.to === id) { t.to = target.id; delete t.toEnv; }
-    } else if (t.support === id) { t.support = target.id; delete t.env; }
+      if (t.from === id) { t.from = target.id; delete t.fromPocket; }
+      if (t.to === id) { t.to = target.id; delete t.toPocket; }
+    } else if (t.support === id) { t.support = target.id; delete t.pocket; }
   });
   transactions = transactions.filter(t => !pointless.has(t.id));
   SUPPORTS = SUPPORTS.filter(x => x.id !== id);
   if (lastSupportId === id) lastSupportId = null;
-  delete lastEnvBySupport[id];
+  delete lastPocketBySupport[id];
   expandedSupports.delete(id);
   saveSupports(); save(); renderSupportsSettings(); updateDisplays();
 }
 
 // ===== TABLEAU DE BORD : solde actuel de chaque support =====
-function toggleSupportEnvs(id) {
+function toggleSupportPockets(id) {
   if (expandedSupports.has(id)) expandedSupports.delete(id); else expandedSupports.add(id);
   renderDashboard();
 }
@@ -1454,24 +1463,24 @@ function renderDashboard() {
   if (!el) return;
   const tiles = SUPPORTS.map(sp => {
     const bal = supportBalance(sp.id);          // toujours le solde total du support
-    const envs = envsOf(sp);
-    const hasEnv = envs.length > 0;
-    const open = hasEnv && expandedSupports.has(sp.id);
+    const pockets = pocketsOf(sp);
+    const hasPocket = pockets.length > 0;
+    const open = hasPocket && expandedSupports.has(sp.id);
     let detail = '';
     if (open) {
-      const rows = envs.map(e => ({ label: e.label, bal: bucketBalance(sp.id, e.id) }));
+      const rows = pockets.map(e => ({ label: e.label, bal: bucketBalance(sp.id, e.id) }));
       const rest = bucketBalance(sp.id, null);
       if (rest !== 0) rows.push({ label: 'Non affecté', bal: rest });
-      detail = '<div class="dash-env-list">' + rows.map(r =>
-        `<div class="dash-env-row"><span class="dash-env-name">${esc(r.label)}</span><span class="dash-env-bal ${r.bal >= 0 ? 'positive' : 'negative'}">${fmt(r.bal)}</span></div>`
+      detail = '<div class="dash-pocket-list">' + rows.map(r =>
+        `<div class="dash-pocket-row"><span class="dash-pocket-name">${esc(r.label)}</span><span class="dash-pocket-bal ${r.bal >= 0 ? 'positive' : 'negative'}">${fmt(r.bal)}</span></div>`
       ).join('') + '</div>';
     }
-    const attrs = hasEnv
-      ? ` role="button" tabindex="0" aria-expanded="${open}" onclick="toggleSupportEnvs('${esc(sp.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSupportEnvs('${esc(sp.id)}')}"`
+    const attrs = hasPocket
+      ? ` role="button" tabindex="0" aria-expanded="${open}" onclick="toggleSupportPockets('${esc(sp.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSupportPockets('${esc(sp.id)}')}"`
       : '';
-    return `<div class="dash-tile${hasEnv ? ' clickable' : ''}${open ? ' open' : ''}"${attrs}>
+    return `<div class="dash-tile${hasPocket ? ' clickable' : ''}${open ? ' open' : ''}"${attrs}>
       <div class="dash-tile-icon"><i class="ti ${esc(sp.icon)}"></i></div>
-      <div class="dash-tile-name">${esc(sp.label)}${hasEnv ? `<i class="ti ti-chevron-${open ? 'up' : 'down'}"></i>` : ''}</div>
+      <div class="dash-tile-name">${esc(sp.label)}${hasPocket ? `<i class="ti ti-chevron-${open ? 'up' : 'down'}"></i>` : ''}</div>
       <div class="dash-tile-balance ${bal >= 0 ? 'positive' : 'negative'}">${fmt(bal)}</div>
       ${detail}
     </div>`;
@@ -1485,7 +1494,7 @@ function renderDashboard() {
 function exportData() {
   const payload = {
     app: 'mon-budget',
-    version: 4,
+    version: 5,
     exportedAt: new Date().toISOString(),
     transactions: transactions,
     budgets: budgets,
