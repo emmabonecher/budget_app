@@ -261,6 +261,11 @@ body { background: #f0f0f0; }
     <button class="type-btn" id="set-tab-income" onclick="setSettingsTab('income')">Recettes</button>
   </div>
   <div id="settings-content"></div>
+  <div class="section-title" style="margin-top:28px">Sauvegarde des données</div>
+  <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:6px;line-height:1.4">Vos données sont stockées sur cet appareil. Exportez-les régulièrement dans un fichier pour ne rien perdre.</p>
+  <button class="btn-primary" onclick="exportData()"><i class="ti ti-download" style="margin-right:6px"></i>Exporter mes données</button>
+  <button class="btn-secondary" onclick="document.getElementById('import-file').click()"><i class="ti ti-upload" style="margin-right:6px"></i>Importer une sauvegarde</button>
+  <input type="file" id="import-file" accept=".json,application/json" style="display:none" onchange="importData(this.files[0]); this.value=''" />
   <button class="btn-secondary btn-danger-secondary" style="margin-top:24px" onclick="resetCategories()">Réinitialiser les catégories par défaut</button>
 </div>
   <div class="page" id="page-analyse">
@@ -1078,6 +1083,62 @@ function deleteCategory(id) {
   INCOME_CATS = INCOME_CATS.filter(c => c.id !== id);
   Object.values(budgets).forEach(b => { delete b[id]; });
   saveCategories(); save(); renderSettings(); updateDisplays();
+}
+
+// ===== SAUVEGARDE : export / import =====
+function exportData() {
+  const payload = {
+    app: 'mon-budget',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    transactions: transactions,
+    budgets: budgets,
+    categories: { groups: GROUPS, expense: EXPENSE_CATS, income: INCOME_CATS }
+  };
+  const json = JSON.stringify(payload, null, 2);
+  const fileName = 'budget-sauvegarde-' + new Date().toISOString().slice(0, 10) + '.json';
+  const file = new File([json], fileName, { type: 'application/json' });
+
+  // Sur mobile : feuille de partage (Drive, mail, Fichiers...) si disponible
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    navigator.share({ files: [file], title: 'Sauvegarde Mon budget' }).catch(err => {
+      if (err && err.name !== 'AbortError') downloadFile(file);
+    });
+    return;
+  }
+  downloadFile(file);
+}
+function downloadFile(file) {
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url; a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+function importData(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    let d;
+    try { d = JSON.parse(reader.result); } catch (e) { alert('Fichier invalide : impossible de lire la sauvegarde.'); return; }
+    const okTx = Array.isArray(d.transactions);
+    const okBud = d.budgets && typeof d.budgets === 'object' && !Array.isArray(d.budgets);
+    const c = d.categories;
+    const okCats = c && Array.isArray(c.groups) && Array.isArray(c.expense) && Array.isArray(c.income);
+    if (d.app !== 'mon-budget' || !okTx || !okBud || !okCats) { alert('Ce fichier ne ressemble pas à une sauvegarde de Mon budget.'); return; }
+    const msg = 'Remplacer toutes les données actuelles par cette sauvegarde ?\n\n'
+      + d.transactions.length + ' transaction(s)\nSauvegarde du ' + String(d.exportedAt || '').slice(0, 10)
+      + '\n\nLes données actuelles de cet appareil seront écrasées.';
+    if (!confirm(msg)) return;
+    try {
+      localStorage.setItem('gestion_tx_v4', JSON.stringify(d.transactions));
+      localStorage.setItem('gestion_budgets_v4', JSON.stringify(d.budgets));
+      localStorage.setItem('gestion_cats_v1', JSON.stringify({ groups: c.groups, expense: c.expense, income: c.income }));
+    } catch (e) { alert('Impossible d\'enregistrer les données sur cet appareil.'); return; }
+    alert('Sauvegarde restaurée.');
+    location.reload();
+  };
+  reader.readAsText(file);
 }
 
 function resetCategories() {
