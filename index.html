@@ -159,6 +159,13 @@ body { background: #f0f0f0; }
 .settings-top { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
 .settings-top h2 { font-size: 16px; font-weight: 500; }
 .back-btn { display: flex; align-items: center; background: none; border: none; color: #378ADD; font-size: 14px; cursor: pointer; padding: 4px 0; }
+.set-group-env { display: flex; align-items: center; gap: 8px; margin: 0 0 6px 12px; font-size: 12px; color: var(--color-text-secondary); }
+.set-group-env select { width: auto; padding: 4px 8px; font-size: 13px; }
+.env-card { background: var(--color-background-secondary); border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); padding: 12px 14px; margin-bottom: 10px; }
+.env-card-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+.env-card-text { font-size: 12px; color: var(--color-text-secondary); line-height: 1.4; margin: 4px 0; }
+.env-card-link { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 8px; font-size: 12px; color: var(--color-text-secondary); }
+.env-card-link select { width: auto; max-width: 100%; padding: 4px 8px; font-size: 13px; }
 .set-group-head { display: flex; justify-content: space-between; align-items: center; margin-top: 16px; margin-bottom: 6px; background: var(--color-background-secondary); border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); padding: 4px 4px 4px 12px; }
 .set-group-name { font-size: 12px; font-weight: 600; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
 .set-cat-row { display: flex; align-items: center; gap: 10px; padding: 8px 4px; border-bottom: 0.5px solid var(--color-border-tertiary); }
@@ -286,6 +293,10 @@ body { background: #f0f0f0; }
   <div class="section-title">Catégories de dépenses</div>
   <div id="settings-content"></div>
   <button class="btn-secondary btn-danger-secondary" style="margin-top:24px" onclick="resetCategories()">Réinitialiser les catégories par défaut</button>
+
+  <div class="section-title" style="margin-top:28px">Enveloppes</div>
+  <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:8px;line-height:1.4">Une enveloppe est un budget mensuel : chaque groupe de catégories est rattaché à Courant ou à Vacances. Les dépenses payées depuis un livret sont automatiquement « Exceptionnelles ».</p>
+  <div id="envelopes-settings"></div>
 
   <div class="section-title" style="margin-top:28px">Supports</div>
   <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:8px;line-height:1.4">Compte bancaire, espèces, tickets restaurant… Chaque dépense et chaque recette est rattachée à un support. Le solde de départ est le montant présent sur le support avant votre première transaction.</p>
@@ -511,6 +522,10 @@ body { background: #f0f0f0; }
       <p id="support-edit-initial-note" style="display:none;font-size:12px;color:var(--color-text-secondary);margin-top:6px;line-height:1.4">Calculé : total des montants de départ des poches.</p>
     </div>
     <div class="form-group">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="support-edit-savings" style="width:auto;margin:0" /> Ce support est un livret (épargne)</label>
+      <p style="font-size:12px;color:var(--color-text-secondary);margin-top:6px;line-height:1.4">Une dépense payée directement depuis un livret est « Exceptionnelle » : elle garde sa catégorie dans les bilans, mais ne pèse pas sur le budget du mois.</p>
+    </div>
+    <div class="form-group">
       <label>Poches (facultatif)</label>
       <p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:8px;line-height:1.4">Divisez ce support en poches. Son solde est alors toujours le total de ses poches, et son solde de départ se calcule à partir du départ de chaque poche. Touchez le support dans « Soldes » pour voir le détail.</p>
       <div id="support-edit-pockets"></div>
@@ -608,8 +623,8 @@ function validHue(v) { return typeof v === 'number' && Number.isFinite(v) && v >
 // Teinte attribuée par défaut selon le rang (supports créés avant que la couleur soit enregistrée)
 function hueForIndex(i) { return i < SUPPORT_HUES.length ? SUPPORT_HUES[i] : Math.round((i * 137.508) % 360); }
 const DEFAULT_SUPPORTS = [
-  { id:'sup-card', label:'Compte bancaire', icon:'ti-building-bank', initial:0, pockets:[], color:210 },
-  { id:'sup-cash', label:'Espèces',         icon:'ti-cash',          initial:0, pockets:[], color:150 }
+  { id:'sup-card', label:'Compte bancaire', icon:'ti-building-bank', initial:0, pockets:[], color:210, savings:false },
+  { id:'sup-cash', label:'Espèces',         icon:'ti-cash',          initial:0, pockets:[], color:150, savings:false }
 ];
 let SUPPORTS = [];
 let lastSupportId = null;
@@ -655,7 +670,9 @@ function normalizeSupports(arr) {
     // Un support qui a des poches a pour solde de départ le total de ses poches (pas de montant à part)
     // Pas de couleur enregistrée (anciennes données) : on fige celle qui correspond à sa place actuelle
     const color = validHue(sp.color) ? Math.round(sp.color) % 360 : hueForIndex(out.length);
-    seen.add(id); out.push({ id, label, icon, initial: pockets.length ? pocketsTotal(pockets) : initial, pockets, color });
+    // Livret (épargne) : pas encore enregistré dans les anciennes données, on suppose qu'un support à poches en est un
+    const savings = typeof sp.savings === 'boolean' ? sp.savings : pockets.length > 0;
+    seen.add(id); out.push({ id, label, icon, initial: pockets.length ? pocketsTotal(pockets) : initial, pockets, color, savings });
   }
   return out.length ? out : null;
 }
@@ -669,7 +686,7 @@ function loadSupports() {
     SUPPORTS = saved;
     // On réécrit tout de suite si : ancien format (« envelopes »), solde de départ relevé pour couvrir les poches,
     // ou couleur pas encore enregistrée (elle est alors figée à sa valeur actuelle)
-    if (Array.isArray(raw) && raw.some((sp, i) => (sp && 'envelopes' in sp) || (Number(sp.initial) || 0) !== saved[i].initial || !validHue(sp.color))) saveSupports();
+    if (Array.isArray(raw) && raw.some((sp, i) => (sp && 'envelopes' in sp) || (Number(sp.initial) || 0) !== saved[i].initial || !validHue(sp.color) || typeof sp.savings !== 'boolean')) saveSupports();
   }
   else { SUPPORTS = DEFAULT_SUPPORTS.map(sp => ({ ...sp })); saveSupports(); }
 }
@@ -717,6 +734,86 @@ function migrateTxList(list, supports) {
 }
 loadSupports();
 if (migrateTxList(transactions, SUPPORTS)) save();
+
+// ===== ENVELOPPES (Courant, Vacances, Exceptionnel) =====
+// Une enveloppe est un budget mensuel. Chaque dépense (ou chaque part d'une dépense ventilée) tombe dans une enveloppe :
+//  - payée directement depuis un livret → Exceptionnel : elle ne pèse pas sur le budget du mois, mais garde sa catégorie ;
+//  - sinon → l'enveloppe du groupe de sa catégorie (Besoins et Loisirs → Courant, Vacances → Vacances).
+// Chaque enveloppe de budget peut être liée à une poche de livret (pour les clôtures à venir).
+const ENVELOPES = [
+  { id: 'courant',      label: 'Courant',      kind: 'budget' },
+  { id: 'vacances',     label: 'Vacances',     kind: 'budget' },
+  { id: 'exceptionnel', label: 'Exceptionnel', kind: 'exceptional' }
+];
+const DEFAULT_GROUP_ENVELOPE = { 'Besoins': 'courant', 'Loisirs': 'courant', 'Vacances': 'vacances' };
+let GROUP_ENV = {};      // nom de groupe → id d'enveloppe de budget
+let ENV_TARGETS = {};    // id d'enveloppe → { support, pocket } : la poche de livret liée (facultatif)
+
+function getEnvelopeById(id) { return ENVELOPES.find(e => e.id === id) || null; }
+function budgetEnvelopes() { return ENVELOPES.filter(e => e.kind === 'budget'); }
+function isBudgetEnvelope(id) { const e = getEnvelopeById(id); return !!e && e.kind === 'budget'; }
+// Enveloppe d'un groupe de catégories ; un groupe sans enveloppe connue va dans Courant (aucune dépense n'échappe au budget)
+function envelopeOfGroup(g) { return isBudgetEnvelope(GROUP_ENV[g]) ? GROUP_ENV[g] : 'courant'; }
+// Une poche liée n'est valable que sur un livret existant, avec une poche existante si le livret en a
+function validEnvTarget(tg) {
+  if (!tg || typeof tg !== 'object') return false;
+  const sp = getSupportById(tg.support);
+  if (!sp || !sp.savings) return false;
+  return pocketsOf(sp).length ? !!getPocket(sp, tg.pocket) : tg.pocket == null;
+}
+function loadEnvelopes() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem('gestion_envelopes_v1')); } catch (e) {}
+  const sg = saved && typeof saved.groups === 'object' && saved.groups ? saved.groups : {};
+  const st = saved && typeof saved.targets === 'object' && saved.targets ? saved.targets : {};
+  GROUP_ENV = {};
+  GROUPS.forEach(g => { GROUP_ENV[g] = isBudgetEnvelope(sg[g]) ? sg[g] : (DEFAULT_GROUP_ENVELOPE[g] || 'courant'); });
+  ENV_TARGETS = {};
+  budgetEnvelopes().forEach(e => { if (validEnvTarget(st[e.id])) ENV_TARGETS[e.id] = { support: st[e.id].support, ...(st[e.id].pocket ? { pocket: st[e.id].pocket } : {}) }; });
+  // Première utilisation ou données corrigées : on enregistre
+  if (!saved || JSON.stringify(saved.groups) !== JSON.stringify(GROUP_ENV) || JSON.stringify(saved.targets) !== JSON.stringify(ENV_TARGETS)) saveEnvelopes();
+}
+function saveEnvelopes() {
+  try { localStorage.setItem('gestion_envelopes_v1', JSON.stringify({ groups: GROUP_ENV, targets: ENV_TARGETS })); } catch (e) {}
+}
+loadEnvelopes();
+
+// Enveloppe d'une part de dépense (null pour une recette ou un transfert)
+function envelopeOfPart(t, part) {
+  if (t.type !== 'expense') return null;
+  const sp = getSupportById(part.support);
+  if (sp && sp.savings) return 'exceptionnel';
+  const cat = EXPENSE_CATS.find(c => c.id === t.cat);
+  return envelopeOfGroup(cat ? cat.group : null);
+}
+// Montant d'une dépense qui pèse sur le budget (hors parts payées depuis un livret)
+function budgetAmount(t) {
+  return round2(txParts(t).reduce((s, x) => s + (envelopeOfPart(t, x) === 'exceptionnel' ? 0 : x.amount), 0));
+}
+// Montant d'une dépense payé depuis un livret : tracé dans les bilans, hors budget
+function exceptionalAmount(t) {
+  return round2(txParts(t).reduce((s, x) => s + (envelopeOfPart(t, x) === 'exceptionnel' ? x.amount : 0), 0));
+}
+// Dépensé par enveloppe, pour une liste de transactions (catégories existantes seulement, comme les lignes du budget)
+function spentByEnvelope(txs) {
+  const out = {};
+  ENVELOPES.forEach(e => { out[e.id] = 0; });
+  txs.forEach(t => {
+    if (t.type !== 'expense' || !EXPENSE_CATS.some(c => c.id === t.cat)) return;
+    txParts(t).forEach(x => { out[envelopeOfPart(t, x)] = round2(out[envelopeOfPart(t, x)] + x.amount); });
+  });
+  return out;
+}
+// Budget d'une enveloppe pour le mois affiché : somme des budgets de ses catégories
+function envelopeBudget(envId) {
+  let total = 0, any = false;
+  EXPENSE_CATS.forEach(c => {
+    if (envelopeOfGroup(c.group) !== envId) return;
+    const b = getBudgetForCat(c.id);
+    if (b !== null) { total += b; any = true; }
+  });
+  return any ? total : null;
+}
 
 function esc(v) {
   return String(v == null ? '' : v).replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
@@ -1045,15 +1142,32 @@ function renderBudgetPage(txs) {
   let html = `<button class="edit-budget-btn" onclick="openBudgetModal()">
     <i class="ti ti-edit"></i>${hasBudget?'Modifier le budget du mois':'Définir le budget du mois'}
   </button>`;
+  // Les dépenses payées depuis un livret (Exceptionnel) ne pèsent pas sur le budget : on ne compte que budgetAmount
+  const spentEnv = spentByEnvelope(txs);
   if (hasBudget) {
-    // Total dépensé : mêmes dépenses que celles des lignes ci-dessous (catégories existantes)
-    const totalSpent = txs.filter(t => t.type === 'expense' && EXPENSE_CATS.some(c => c.id === t.cat)).reduce((s, t) => s + t.amount, 0);
+    // Total dépensé : mêmes dépenses que celles des lignes ci-dessous (catégories existantes, hors exceptionnel)
+    const totalSpent = round2(budgetEnvelopes().reduce((s, e) => s + spentEnv[e.id], 0));
     html += `<div class="budget-page-total"><span class="budget-page-total-label">Total budgété</span><span class="budget-page-total-value">${fmt(totalSpent)} / ${fmtInt(totalBudget)}</span></div>`;
   }
+  // Une ligne par enveloppe : dépensé / budgété, puis les dépenses exceptionnelles (hors budget)
+  const envLines = budgetEnvelopes().map(e => {
+    const spent = spentEnv[e.id], budget = envelopeBudget(e.id);
+    if (budget === null && spent === 0) return '';
+    const pct = (budget !== null && budget > 0) ? Math.max(0, Math.min(100, Math.round(spent / budget * 100))) : 0;
+    const color = pct > 90 ? '#E24B4A' : pct > 70 ? '#EF9F27' : '#1D9E75';
+    const amounts = budget !== null ? fmt(spent) + ' / ' + fmtInt(budget) : fmt(spent);
+    const bar = budget !== null ? `<div class="progress-bar"><div class="progress-fill" style="width:${budget === 0 ? 100 : pct}%;background:${budget === 0 ? (spent <= 0 ? '#1D9E75' : '#E24B4A') : color}"></div></div>` : '';
+    return `<div class="budget-item"><div class="budget-header"><span class="budget-cat"><strong>${esc(e.label)}</strong></span><span class="budget-amounts">${amounts}</span></div>${bar}</div>`;
+  }).join('');
+  const exc = spentEnv.exceptionnel;
+  const excLine = exc !== 0
+    ? `<div class="budget-item"><div class="budget-header"><span class="budget-cat"><strong>Exceptionnel</strong> <span class="budget-no-def">hors budget</span></span><span class="budget-amounts">${fmt(exc)}</span></div></div>`
+    : '';
+  if (envLines || excLine) html += `<div class="section-title">Enveloppes</div>${envLines}${excLine}`;
  GROUPS.forEach(g => {
   const groupCats = EXPENSE_CATS.filter(c => c.group === g);
   const groupSpent = groupCats.reduce((s, cat) =>
-    s + txs.filter(t => t.type === 'expense' && t.cat === cat.id).reduce((a, t) => a + t.amount, 0), 0);
+    s + txs.filter(t => t.type === 'expense' && t.cat === cat.id).reduce((a, t) => a + budgetAmount(t), 0), 0);
   const groupBudget = groupCats.reduce((s, cat) => {
     const b = getBudgetForCat(cat.id);
     return s + (b !== null ? b : 0);
@@ -1069,7 +1183,7 @@ function renderBudgetPage(txs) {
   ${subtotalHtml}
 </div>`;
   EXPENSE_CATS.filter(c=>c.group===g).forEach(cat => {
-      const spent = txs.filter(t=>t.type==='expense'&&t.cat===cat.id).reduce((s,t)=>s+t.amount,0);
+      const spent = txs.filter(t=>t.type==='expense'&&t.cat===cat.id).reduce((s,t)=>s+budgetAmount(t),0);
       const budget = getBudgetForCat(cat.id);
       const hasCatBudget = budget !== null;
       const pct = (hasCatBudget && budget > 0) ? Math.max(0,Math.min(100,Math.round(spent/budget*100))) : 0;
@@ -1496,6 +1610,9 @@ function renderSettings() {
             <button class="icon-btn danger" onclick="deleteGroup(${gi})"><i class="ti ti-trash"></i></button>
           </span>
         </div>
+        <div class="set-group-env"><label>Enveloppe</label>
+          <select onchange="setGroupEnvelope(${gi}, this.value)">${budgetEnvelopes().map(e => `<option value="${e.id}"${envelopeOfGroup(g) === e.id ? ' selected' : ''}>${esc(e.label)}</option>`).join('')}</select>
+        </div>
         <div class="set-cat-list">${EXPENSE_CATS.filter(c => c.group === g).map(catRowHtml).join('')}</div>
         <button class="add-cat-btn" onclick="openCatEdit(null, ${gi})"><i class="ti ti-plus"></i> Ajouter une catégorie</button>
       </div>`;
@@ -1507,6 +1624,7 @@ function renderSettings() {
     html += `<button class="add-cat-btn" onclick="openCatEdit(null)"><i class="ti ti-plus"></i> Ajouter une catégorie</button>`;
   }
   document.getElementById('settings-content').innerHTML = html;
+  renderEnvelopesSettings();
   renderSupportsSettings();
 }
 
@@ -1516,7 +1634,8 @@ function addGroup() {
   if (!name) return;
   if (GROUPS.includes(name)) { alert('Ce groupe existe déjà.'); return; }
   GROUPS.push(name);
-  saveCategories(); renderSettings(); updateDisplays();
+  GROUP_ENV[name] = 'courant';   // un nouveau groupe va dans Courant, à changer dans le groupe si besoin
+  saveCategories(); saveEnvelopes(); renderSettings(); updateDisplays();
 }
 function renameGroup(i) {
   const old = GROUPS[i];
@@ -1525,7 +1644,8 @@ function renameGroup(i) {
   if (GROUPS.includes(name)) { alert('Ce groupe existe déjà.'); return; }
   EXPENSE_CATS.forEach(c => { if (c.group === old) c.group = name; });
   GROUPS[i] = name;
-  saveCategories(); renderSettings(); updateDisplays();
+  GROUP_ENV[name] = envelopeOfGroup(old); delete GROUP_ENV[old];
+  saveCategories(); saveEnvelopes(); renderSettings(); updateDisplays();
 }
 function deleteGroup(i) {
   const g = GROUPS[i];
@@ -1535,7 +1655,57 @@ function deleteGroup(i) {
   }
   if (!confirm('Supprimer le groupe « ' + g + ' » ?')) return;
   GROUPS.splice(i, 1);
-  saveCategories(); renderSettings(); updateDisplays();
+  delete GROUP_ENV[g];
+  saveCategories(); saveEnvelopes(); renderSettings(); updateDisplays();
+}
+function setGroupEnvelope(gi, envId) {
+  if (!isBudgetEnvelope(envId) || !GROUPS[gi]) return;
+  GROUP_ENV[GROUPS[gi]] = envId;
+  saveEnvelopes(); renderSettings(); updateDisplays();
+}
+
+// --- Enveloppes (réglages) ---
+function renderEnvelopesSettings() {
+  const el = document.getElementById('envelopes-settings');
+  if (!el) return;
+  const savingsSupports = SUPPORTS.filter(sp => sp.savings);
+  const desc = {
+    courant: 'Dépenses du quotidien, payées depuis un compte, des espèces ou un autre support (hors livret).',
+    vacances: 'Provision mensuelle pour les vacances, payée depuis un support (hors livret).'
+  };
+  el.innerHTML = ENVELOPES.map(e => {
+    if (e.kind === 'exceptional') {
+      return `<div class="env-card"><div class="env-card-title">${esc(e.label)}</div>
+        <p class="env-card-text">Dépenses payées directement depuis un livret. Elles ne pèsent pas sur le budget du mois, mais gardent leur catégorie pour les bilans. Rien à régler : elles sont reconnues automatiquement.</p></div>`;
+    }
+    const groups = GROUPS.filter(g => envelopeOfGroup(g) === e.id);
+    const tg = ENV_TARGETS[e.id] || null;
+    const tsp = tg ? getSupportById(tg.support) : null;
+    const supOpts = '<option value="">Aucune</option>' + savingsSupports.map(sp => `<option value="${esc(sp.id)}"${tg && tg.support === sp.id ? ' selected' : ''}>${esc(sp.label)}</option>`).join('');
+    const pocketOpts = tsp ? pocketsOf(tsp).map(p => `<option value="${esc(p.id)}"${tg.pocket === p.id ? ' selected' : ''}>${esc(p.label)}</option>`).join('') : '';
+    return `<div class="env-card"><div class="env-card-title">${esc(e.label)}</div>
+      <p class="env-card-text">${desc[e.id] || ''}</p>
+      <p class="env-card-text"><strong>Groupes :</strong> ${groups.length ? groups.map(esc).join(', ') : 'aucun (à choisir dans les groupes ci-dessus)'}</p>
+      <div class="env-card-link">
+        <label>Livret lié</label>
+        <select onchange="setEnvelopeSupport('${e.id}', this.value)"${savingsSupports.length ? '' : ' disabled'}>${supOpts}</select>
+        ${pocketOpts ? `<label>Poche liée</label><select onchange="setEnvelopePocket('${e.id}', this.value)">${pocketOpts}</select>` : ''}
+        ${savingsSupports.length ? '' : '<p class="env-card-text">Aucun livret : cochez « Ce support est un livret » dans un support pour pouvoir le lier.</p>'}
+      </div></div>`;
+  }).join('');
+}
+function setEnvelopeSupport(envId, supId) {
+  if (!isBudgetEnvelope(envId)) return;
+  const sp = supId ? getSupportById(supId) : null;
+  if (!sp || !sp.savings) delete ENV_TARGETS[envId];
+  else { const first = pocketsOf(sp)[0]; ENV_TARGETS[envId] = { support: sp.id, ...(first ? { pocket: first.id } : {}) }; }
+  saveEnvelopes(); renderEnvelopesSettings();
+}
+function setEnvelopePocket(envId, pocketId) {
+  const tg = ENV_TARGETS[envId];
+  if (!tg || !getPocket(getSupportById(tg.support), pocketId)) return;
+  tg.pocket = pocketId;
+  saveEnvelopes(); renderEnvelopesSettings();
 }
 
 // --- Catégories ---
@@ -1651,6 +1821,7 @@ function openSupportEdit(id) {
   renderSupportColorPicker();
   document.getElementById('support-edit-title').textContent = sp ? 'Modifier le support' : 'Nouveau support';
   document.getElementById('support-edit-name').value = sp ? sp.label : '';
+  document.getElementById('support-edit-savings').checked = !!(sp && sp.savings);
   const initialInput = document.getElementById('support-edit-initial');
   initialInput.disabled = false;
   initialInput.value = sp && sp.initial ? sp.initial : '';
@@ -1716,6 +1887,7 @@ function saveSupportEdit() {
   }
   // Avec des poches, le solde de départ du support est le total de ses poches
   if (pockets.length) initial = pocketsTotal(pockets);
+  const savings = document.getElementById('support-edit-savings').checked;
 
   if (supportEditId) {
     const sp = getSupportById(supportEditId);
@@ -1744,10 +1916,12 @@ function saveSupportEdit() {
       removed.forEach(id => { if (lastPocketBySupport[sp.id] === id) delete lastPocketBySupport[sp.id]; });
       save();
     }
-    sp.label = name; sp.icon = supportEditIcon; sp.initial = initial; sp.pockets = pockets; sp.color = supportEditColor;
+    sp.label = name; sp.icon = supportEditIcon; sp.initial = initial; sp.pockets = pockets; sp.color = supportEditColor; sp.savings = savings;
   } else {
-    SUPPORTS.push({ id: 'sup-' + Date.now(), label: name, icon: supportEditIcon, initial, pockets, color: supportEditColor });
+    SUPPORTS.push({ id: 'sup-' + Date.now(), label: name, icon: supportEditIcon, initial, pockets, color: supportEditColor, savings });
   }
+  // Une enveloppe liée à une poche qui n'existe plus (ou à un support qui n'est plus un livret) perd son lien
+  loadEnvelopes();
   saveSupports(); closeSupportEdit(); renderSupportsSettings(); updateDisplays();
 }
 function deleteSupport(id) {
@@ -1784,6 +1958,7 @@ function deleteSupport(id) {
   if (lastSupportId === id) lastSupportId = null;
   delete lastPocketBySupport[id];
   expandedSupports.delete(id);
+  loadEnvelopes();   // une enveloppe liée à ce support perd son lien
   saveSupports(); save(); renderSupportsSettings(); updateDisplays();
 }
 
@@ -1910,12 +2085,13 @@ function renderSupportDetail() {
 function exportData() {
   const payload = {
     app: 'mon-budget',
-    version: 5,
+    version: 6,
     exportedAt: new Date().toISOString(),
     transactions: transactions,
     budgets: budgets,
     supports: SUPPORTS,
-    categories: { groups: GROUPS, expense: EXPENSE_CATS, income: INCOME_CATS }
+    categories: { groups: GROUPS, expense: EXPENSE_CATS, income: INCOME_CATS },
+    envelopes: { groups: GROUP_ENV, targets: ENV_TARGETS }
   };
   const json = JSON.stringify(payload, null, 2);
   const fileName = 'budget-sauvegarde-' + new Date().toISOString().slice(0, 10) + '.json';
@@ -1984,6 +2160,10 @@ function importData(file) {
       localStorage.setItem('gestion_budgets_v4', JSON.stringify(d.budgets));
       localStorage.setItem('gestion_supports_v1', JSON.stringify(sup));
       localStorage.setItem('gestion_cats_v1', JSON.stringify({ groups: c.groups, expense: c.expense, income: c.income }));
+      // Enveloppes : sauvegardes d'avant leur création = pas de clé, elles sont déduites des groupes au chargement
+      const ev = d.envelopes;
+      if (ev && typeof ev === 'object' && !Array.isArray(ev)) localStorage.setItem('gestion_envelopes_v1', JSON.stringify({ groups: ev.groups, targets: ev.targets }));
+      else localStorage.removeItem('gestion_envelopes_v1');
     } catch (e) { alert('Impossible d\'enregistrer les données sur cet appareil.'); return; }
     alert('Sauvegarde restaurée.');
     location.reload();
@@ -1994,9 +2174,11 @@ function importData(file) {
 function resetCategories() {
   if (!confirm('Revenir aux catégories par défaut ? Les catégories que vous avez créées seront supprimées (vos transactions sont conservées).')) return;
   resetCategoriesToDefault();
+  GROUP_ENV = {};
+  GROUPS.forEach(g => { GROUP_ENV[g] = DEFAULT_GROUP_ENVELOPE[g] || 'courant'; });
   const valid = new Set(EXPENSE_CATS.map(c => c.id));
   Object.values(budgets).forEach(b => Object.keys(b).forEach(k => { if (!valid.has(k)) delete b[k]; }));
-  saveCategories(); save(); renderSettings(); updateDisplays();
+  saveCategories(); saveEnvelopes(); save(); renderSettings(); updateDisplays();
 }
 
   // ===== Glisser-déposer (réorganisation) =====
@@ -2127,7 +2309,9 @@ function renderAnalyse() {
   const txs = getMonthTx()
     .filter(t => t.type === 'expense' && t.cat === analyseCatId)
     .sort((a, b) => b.date !== a.date ? b.date.localeCompare(a.date) : b.id - a.id);
-  const spent = txs.reduce((s, t) => s + t.amount, 0);
+  // Dépensé = ce qui pèse sur le budget ; les dépenses payées depuis un livret sont indiquées à part
+  const spent = round2(txs.reduce((s, t) => s + budgetAmount(t), 0));
+  const exceptional = round2(txs.reduce((s, t) => s + exceptionalAmount(t), 0));
   const budget = getBudgetForCat(analyseCatId);
 
   let budgetHtml = '';
@@ -2163,6 +2347,7 @@ function renderAnalyse() {
         ${budget !== null ? `<span style="font-size:14px;color:var(--color-text-secondary)">/ ${fmtInt(budget)}</span>` : ''}
       </div>
       ${budgetHtml}
+      ${exceptional !== 0 ? `<div style="font-size:13px;color:var(--color-text-secondary);margin-top:8px">Exceptionnel (payé depuis un livret, hors budget) : ${fmt(exceptional)}</div>` : ''}
     </div>
     <div class="section-title">${txs.length} transaction${txs.length > 1 ? 's' : ''}</div>
     <div class="transaction-list" id="analyse-list"></div>`;
