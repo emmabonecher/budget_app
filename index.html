@@ -520,6 +520,10 @@ body { background: #f0f0f0; }
       <label>Icône</label>
       <div class="icon-grid" id="support-edit-icons"></div>
     </div>
+    <div class="form-group">
+      <label>Couleur</label>
+      <div class="color-grid" id="support-edit-colors"></div>
+    </div>
     <button class="btn-primary" onclick="saveSupportEdit()">Enregistrer</button>
     <button class="btn-secondary" onclick="closeSupportEdit()">Annuler</button>
   </div>
@@ -598,9 +602,14 @@ try { transactions = JSON.parse(localStorage.getItem('gestion_tx_v4')||'[]'); } 
 try { budgets = JSON.parse(localStorage.getItem('gestion_budgets_v4')||'{}'); } catch(e){}
 
 // ===== SUPPORTS (compte bancaire, espèces, tickets restaurant...) =====
+// Couleur d'un support = une teinte (0-359) enregistrée avec le support. Palette proposée dans les réglages :
+const SUPPORT_HUES = [210, 150, 28, 275, 345, 175, 48, 310, 240, 95];
+function validHue(v) { return typeof v === 'number' && Number.isFinite(v) && v >= 0 && v < 360; }
+// Teinte attribuée par défaut selon le rang (supports créés avant que la couleur soit enregistrée)
+function hueForIndex(i) { return i < SUPPORT_HUES.length ? SUPPORT_HUES[i] : Math.round((i * 137.508) % 360); }
 const DEFAULT_SUPPORTS = [
-  { id:'sup-card', label:'Compte bancaire', icon:'ti-building-bank', initial:0, pockets:[] },
-  { id:'sup-cash', label:'Espèces',         icon:'ti-cash',          initial:0, pockets:[] }
+  { id:'sup-card', label:'Compte bancaire', icon:'ti-building-bank', initial:0, pockets:[], color:210 },
+  { id:'sup-cash', label:'Espèces',         icon:'ti-cash',          initial:0, pockets:[], color:150 }
 ];
 let SUPPORTS = [];
 let lastSupportId = null;
@@ -644,7 +653,9 @@ function normalizeSupports(arr) {
     // Anciennes données : les poches s'appelaient « envelopes »
     const pockets = normalizePockets(sp.pockets !== undefined ? sp.pockets : sp.envelopes);
     // Un support qui a des poches a pour solde de départ le total de ses poches (pas de montant à part)
-    seen.add(id); out.push({ id, label, icon, initial: pockets.length ? pocketsTotal(pockets) : initial, pockets });
+    // Pas de couleur enregistrée (anciennes données) : on fige celle qui correspond à sa place actuelle
+    const color = validHue(sp.color) ? Math.round(sp.color) % 360 : hueForIndex(out.length);
+    seen.add(id); out.push({ id, label, icon, initial: pockets.length ? pocketsTotal(pockets) : initial, pockets, color });
   }
   return out.length ? out : null;
 }
@@ -656,10 +667,9 @@ function loadSupports() {
   try { raw = JSON.parse(localStorage.getItem('gestion_supports_v1')); saved = normalizeSupports(raw); } catch (e) {}
   if (saved) {
     SUPPORTS = saved;
-    // Ancien format (« envelopes ») : on réécrit tout de suite au nouveau format
-    if (Array.isArray(raw) && raw.some(sp => sp && 'envelopes' in sp)) saveSupports();
-    // Solde de départ relevé pour couvrir les poches : on l'enregistre aussi
-    else if (Array.isArray(raw) && raw.some((sp, i) => (Number(sp.initial) || 0) !== saved[i].initial)) saveSupports();
+    // On réécrit tout de suite si : ancien format (« envelopes »), solde de départ relevé pour couvrir les poches,
+    // ou couleur pas encore enregistrée (elle est alors figée à sa valeur actuelle)
+    if (Array.isArray(raw) && raw.some((sp, i) => (sp && 'envelopes' in sp) || (Number(sp.initial) || 0) !== saved[i].initial || !validHue(sp.color))) saveSupports();
   }
   else { SUPPORTS = DEFAULT_SUPPORTS.map(sp => ({ ...sp })); saveSupports(); }
 }
@@ -963,10 +973,9 @@ function updateDisplays() {
 
 // Couleur d'un support : une teinte par support (selon son rang dans la liste des supports).
 // Les poches d'un même support gardent la même teinte, avec de légères variations de clarté.
-const SUPPORT_HUES = [210, 150, 28, 275, 345, 175, 48, 310, 240, 95];
 function supportHue(id) {
-  const i = Math.max(0, SUPPORTS.findIndex(sp => sp.id === id));
-  return i < SUPPORT_HUES.length ? SUPPORT_HUES[i] : Math.round((i * 137.508) % 360);
+  const sp = getSupportById(id);
+  return sp && validHue(sp.color) ? sp.color : hueForIndex(Math.max(0, SUPPORTS.findIndex(x => x.id === id)));
 }
 function supportColors(id, pocketId) {
   const sp = getSupportById(id);
@@ -1037,7 +1046,9 @@ function renderBudgetPage(txs) {
     <i class="ti ti-edit"></i>${hasBudget?'Modifier le budget du mois':'Définir le budget du mois'}
   </button>`;
   if (hasBudget) {
-    html += `<div class="budget-page-total"><span class="budget-page-total-label">Total budgété</span><span class="budget-page-total-value">${fmtInt(totalBudget)}</span></div>`;
+    // Total dépensé : mêmes dépenses que celles des lignes ci-dessous (catégories existantes)
+    const totalSpent = txs.filter(t => t.type === 'expense' && EXPENSE_CATS.some(c => c.id === t.cat)).reduce((s, t) => s + t.amount, 0);
+    html += `<div class="budget-page-total"><span class="budget-page-total-label">Total budgété</span><span class="budget-page-total-value">${fmt(totalSpent)} / ${fmtInt(totalBudget)}</span></div>`;
   }
  GROUPS.forEach(g => {
   const groupCats = EXPENSE_CATS.filter(c => c.group === g);
@@ -1602,13 +1613,14 @@ function deleteCategory(id) {
 // ===== SUPPORTS : réglages =====
 const SUPPORT_ICONS = ['ti-building-bank','ti-cash','ti-credit-card','ti-wallet','ti-pig-money','ti-ticket',
                        'ti-fork-knife','ti-gift','ti-coin','ti-device-mobile','ti-shopping-bag','ti-star'];
-let supportEditId = null, supportEditIcon = 'ti-wallet';
+let supportEditId = null, supportEditIcon = 'ti-wallet', supportEditColor = SUPPORT_HUES[0];
 
 function renderSupportsSettings() {
   const el = document.getElementById('supports-settings');
   if (!el) return;
-  el.innerHTML = SUPPORTS.map(sp => `<div class="set-cat-row">
-    <div class="cat-row-icon" style="background:#E6F1FB"><i class="ti ${esc(sp.icon)}" style="font-size:15px;color:var(--color-text-primary)"></i></div>
+  el.innerHTML = SUPPORTS.map(sp => `<div class="set-cat-row" data-drag-item="support" data-id="${esc(sp.id)}">
+    <span class="drag-handle"><i class="ti ti-grip-vertical"></i></span>
+    <div class="cat-row-icon" style="background:${supportColors(sp.id).bg}"><i class="ti ${esc(sp.icon)}" style="font-size:15px;color:var(--color-text-primary)"></i></div>
     <div class="cat-row-name">${esc(sp.label)}<div style="font-size:11px;color:var(--color-text-tertiary)">Solde de départ : ${fmt(Number(sp.initial) || 0)}</div>${pocketsOf(sp).length ? `<div style="font-size:11px;color:var(--color-text-tertiary)">Poches : ${pocketsOf(sp).map(e => esc(e.label)).join(', ')}</div>` : ''}</div>
     <button class="icon-btn" onclick="openSupportEdit('${esc(sp.id)}')"><i class="ti ti-pencil"></i></button>
     <button class="icon-btn danger" onclick="deleteSupport('${esc(sp.id)}')"><i class="ti ti-trash"></i></button>
@@ -1620,10 +1632,23 @@ function renderSupportIconPicker() {
   ).join('');
 }
 function pickSupportIcon(ic) { supportEditIcon = ic; renderSupportIconPicker(); }
+function renderSupportColorPicker() {
+  document.getElementById('support-edit-colors').innerHTML = SUPPORT_HUES.map(h =>
+    `<button type="button" class="color-choice${h === supportEditColor ? ' selected' : ''}" style="background:hsl(${h} 75% 90%)" aria-label="Couleur ${h}" onclick="pickSupportColor(${h})"></button>`
+  ).join('');
+}
+function pickSupportColor(h) { supportEditColor = h; renderSupportColorPicker(); }
+// Couleur proposée pour un nouveau support : la première de la palette qui n'est pas déjà prise
+function nextFreeHue() {
+  const used = new Set(SUPPORTS.map(sp => sp.color));
+  return SUPPORT_HUES.find(h => !used.has(h)) ?? hueForIndex(SUPPORTS.length);
+}
 function openSupportEdit(id) {
   const sp = id ? getSupportById(id) : null;
   supportEditId = sp ? sp.id : null;
   supportEditIcon = sp ? sp.icon : 'ti-wallet';
+  supportEditColor = sp ? supportHue(sp.id) : nextFreeHue();
+  renderSupportColorPicker();
   document.getElementById('support-edit-title').textContent = sp ? 'Modifier le support' : 'Nouveau support';
   document.getElementById('support-edit-name').value = sp ? sp.label : '';
   const initialInput = document.getElementById('support-edit-initial');
@@ -1719,9 +1744,9 @@ function saveSupportEdit() {
       removed.forEach(id => { if (lastPocketBySupport[sp.id] === id) delete lastPocketBySupport[sp.id]; });
       save();
     }
-    sp.label = name; sp.icon = supportEditIcon; sp.initial = initial; sp.pockets = pockets;
+    sp.label = name; sp.icon = supportEditIcon; sp.initial = initial; sp.pockets = pockets; sp.color = supportEditColor;
   } else {
-    SUPPORTS.push({ id: 'sup-' + Date.now(), label: name, icon: supportEditIcon, initial, pockets });
+    SUPPORTS.push({ id: 'sup-' + Date.now(), label: name, icon: supportEditIcon, initial, pockets, color: supportEditColor });
   }
   saveSupports(); closeSupportEdit(); renderSupportsSettings(); updateDisplays();
 }
@@ -1985,6 +2010,15 @@ function moveDragged(x, y) {
   if (!under || !drag) return;
   const el = drag.el;
 
+  // Supports : on ne réordonne que dans leur propre liste (jamais vers les catégories)
+  if (drag.kind === 'support') {
+    const row = under.closest('.set-cat-row');
+    if (!row || row === el || row.parentNode !== el.parentNode) return;
+    const r = row.getBoundingClientRect();
+    row.parentNode.insertBefore(el, y > r.top + r.height / 2 ? row.nextSibling : row);
+    return;
+  }
+
   if (drag.kind === 'group') {
     const g = under.closest('.set-group');
     if (!g || g === el) return;
@@ -2015,6 +2049,15 @@ function finishDrag() {
   drag.el.classList.remove('dragging');
   drag = null;
 
+  if (kind === 'support') {
+    const byId = new Map(SUPPORTS.map(sp => [sp.id, sp]));
+    const next = [...document.querySelectorAll('#supports-settings .set-cat-row')].map(r => byId.get(r.dataset.id)).filter(Boolean);
+    SUPPORTS.forEach(sp => { if (!next.includes(sp)) next.push(sp); }); // sécurité
+    SUPPORTS = next;
+    saveSupports(); renderSupportsSettings(); updateDisplays();
+    return;
+  }
+
   if (kind === 'group') {
     const order = [...document.querySelectorAll('#settings-content .set-group')].map(g => parseInt(g.dataset.gi, 10));
     GROUPS = order.map(i => GROUPS[i]);
@@ -2041,7 +2084,11 @@ function finishDrag() {
 }
 
 function initSettingsDrag() {
-  const root = document.getElementById('settings-content');
+  // Catégories et groupes (#settings-content) ainsi que supports (#supports-settings)
+  ['settings-content', 'supports-settings'].forEach(attachDrag);
+}
+function attachDrag(rootId) {
+  const root = document.getElementById(rootId);
   root.addEventListener('pointerdown', e => {
     const handle = e.target.closest('.drag-handle');
     if (!handle) return;
