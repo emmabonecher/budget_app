@@ -167,7 +167,13 @@ body { background: #f0f0f0; }
 .add-cat-btn { width: 100%; background: none; border: 0.5px dashed var(--color-border-secondary); border-radius: var(--border-radius-md); padding: 10px; font-size: 13px; color: #378ADD; cursor: pointer; margin-top: 8px; }
 .dash-tile.clickable { cursor: pointer; }
 .dash-tile.open { grid-column: 1 / -1; }
-.dash-tile-name .ti { margin-left: 4px; font-size: 12px; vertical-align: middle; }
+.dash-tile-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dash-tile-go { font-size: 16px; color: var(--color-text-tertiary); }
+.dash-pocket-toggle { display: inline-flex; align-items: center; gap: 3px; background: none; border: 0.5px solid var(--color-border-secondary); border-radius: 20px; padding: 4px 10px; font-size: 12px; font-family: inherit; color: var(--color-text-secondary); cursor: pointer; }
+.dash-pocket-toggle .ti { font-size: 12px; }
+.sup-chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 12px; }
+.sup-chip { flex: none; border: 1.5px solid transparent; border-radius: 20px; padding: 6px 12px; font-size: 13px; font-family: inherit; cursor: pointer; }
+.sup-chip.active { border-color: currentColor; font-weight: 500; }
 .dash-pocket-list { margin-top: 6px; border-top: 0.5px solid var(--color-border-tertiary); }
 .dash-pocket-row { display: flex; justify-content: space-between; gap: 10px; padding: 8px 0; font-size: 14px; border-bottom: 0.5px solid var(--color-border-tertiary); }
 .dash-pocket-row:last-child { border-bottom: none; }
@@ -298,6 +304,13 @@ body { background: #f0f0f0; }
     <h2>Analyse</h2>
   </div>
   <div id="analyse-content"></div>
+</div>
+  <div class="page" id="page-support">
+  <div class="settings-top">
+    <button class="back-btn" onclick="history.back()"><i class="ti ti-chevron-left"></i> Retour</button>
+    <h2>Support</h2>
+  </div>
+  <div id="support-content"></div>
 </div>
 </div>
 
@@ -945,29 +958,57 @@ function updateDisplays() {
   renderBudgetPage(txs);
   renderDashboard();
   renderAnalyse();
+  renderSupportDetail();
 }
 
-function supportBadge(id, pocketId, amount) {
+// Couleur d'un support : une teinte par support (selon son rang dans la liste des supports).
+// Les poches d'un même support gardent la même teinte, avec de légères variations de clarté.
+const SUPPORT_HUES = [210, 150, 28, 275, 345, 175, 48, 310, 240, 95];
+function supportHue(id) {
+  const i = Math.max(0, SUPPORTS.findIndex(sp => sp.id === id));
+  return i < SUPPORT_HUES.length ? SUPPORT_HUES[i] : Math.round((i * 137.508) % 360);
+}
+function supportColors(id, pocketId) {
+  const sp = getSupportById(id);
+  const h = supportHue(id);
+  const list = pocketsOf(sp);
+  const idx = pocketId ? list.findIndex(e => e.id === pocketId) : -1;
+  if (idx < 0) return { bg: `hsl(${h} 75% 90%)`, fg: `hsl(${h} 65% 26%)` };
+  const t = list.length > 1 ? idx / (list.length - 1) : 0.5;
+  const hh = Math.round(h + (t - 0.5) * 24);
+  return { bg: `hsl(${hh} ${Math.round(70 + t * 15)}% ${Math.round(93 - t * 16)}%)`, fg: `hsl(${hh} 65% 24%)` };
+}
+function supportBadge(id, pocketId) {
   const sp = getSupportById(id);
   if (!sp) return '';
   const pocket = pocketId ? getPocket(sp, pocketId) : null;
-  return `<span class="tx-payment-badge card"><i class="ti ${esc(sp.icon)}" style="font-size:10px"></i>${esc(sp.label)}${pocket ? ' · ' + esc(pocket.label) : ''}${amount != null ? ' · ' + fmt(amount) : ''}</span>`;
+  const c = supportColors(id, pocket ? pocketId : null);
+  return `<span class="tx-payment-badge" style="background:${c.bg};color:${c.fg}"><i class="ti ${esc(sp.icon)}" style="font-size:10px"></i>${esc(sp.label)}${pocket ? ' · ' + esc(pocket.label) : ''}</span>`;
 }
 
-function renderList(el, txs, withActions) {
+// ctx (facultatif) : { support, pocket } — vue d'un support. pocket : undefined = toutes, null = non affecté, sinon l'id d'une poche.
+// Les montants affichés sont alors ceux qui concernent ce support (ou cette poche) et non le total de la transaction.
+function slotMatches(ctx, supId, pocketId) {
+  return supId === ctx.support && (ctx.pocket === undefined || (pocketId || null) === ctx.pocket);
+}
+function renderList(el, txs, withActions, ctx) {
   if (!txs.length) { el.innerHTML='<div class="empty-state"><i class="ti ti-receipt" style="font-size:32px;display:block;margin-bottom:8px"></i>Aucune transaction</div>'; return; }
   el.innerHTML = txs.map(t => {
     const cat=getCatById(t.cat);
     let icon=cat?cat.icon:'ti-box', bg=cat?cat.color:'#F1EFE8';
     let catLabel=cat?(cat.group?cat.group+' · '+cat.label:cat.label):'Catégorie supprimée';
-    let name=esc(t.desc), badges=(Array.isArray(t.splits) ? t.splits.map(x => supportBadge(x.support, x.pocket, x.amount)).join(' ') : supportBadge(t.support, t.pocket)), amountHtml;
+    let name=esc(t.desc), badges=(Array.isArray(t.splits) ? t.splits.map(x => supportBadge(x.support, x.pocket)).join(' ') : supportBadge(t.support, t.pocket)), amountHtml;
     if (t.type==='transfer') {
       icon='ti-arrows-exchange'; bg='#E6F1FB'; catLabel=''; name='Transfert';
       badges=supportBadge(t.from, t.fromPocket)+' <i class="ti ti-arrow-right" style="font-size:11px"></i> '+supportBadge(t.to, t.toPocket);
-      amountHtml=`<div class="tx-amount" style="color:var(--color-text-info)">${fmt(t.amount)}</div>`;
+      const out = ctx && slotMatches(ctx, t.from, t.fromPocket), inn = ctx && slotMatches(ctx, t.to, t.toPocket);
+      if (out && !inn) amountHtml=`<div class="tx-amount neg">-${fmt(t.amount)}</div>`;
+      else if (inn && !out) amountHtml=`<div class="tx-amount pos">+${fmt(t.amount)}</div>`;
+      else amountHtml=`<div class="tx-amount" style="color:var(--color-text-info)">${fmt(t.amount)}</div>`;
     } else {
       if (t.type==='income' && !cat) { icon='ti-arrow-down'; bg='#EAF3DE'; catLabel='Recette'; }
-      const delta = t.type==='income' ? t.amount : -t.amount;   // effet sur le solde
+      const shown = ctx ? round2(txParts(t).filter(x => slotMatches(ctx, x.support, x.pocket)).reduce((s, x) => s + x.amount, 0)) : t.amount;
+      const delta = t.type==='income' ? shown : -shown;   // effet sur le solde
       amountHtml=`<div class="tx-amount ${delta>=0?'pos':'neg'}">${delta>=0?'+':'-'}${fmt(Math.abs(delta))}</div>`;
     }
     const isSelected = selectedIds.has(t.id);
@@ -1046,11 +1087,12 @@ function showPage(name, fromPop) {
   document.getElementById('page-' + name).classList.add('active');
   const navBtn = document.getElementById('nav-' + name);
   if (navBtn) navBtn.classList.add('active');
-  const isSub = name === 'settings' || name === 'analyse';
+  const isSub = name === 'settings' || name === 'analyse' || name === 'support';
   document.querySelector('.nav').style.display = isSub ? 'none' : '';
   document.querySelector('.fab').style.display = (name === 'budget' || isSub) ? 'none' : 'flex';
   if (name === 'settings') renderSettings();
   if (name === 'analyse') renderAnalyse();
+  if (name === 'support') renderSupportDetail();
   if (name === 'dashboard') renderDashboard();
   if (isSub) window.scrollTo(0, 0);
 
@@ -1742,12 +1784,18 @@ function renderDashboard() {
         `<div class="dash-pocket-row"><span class="dash-pocket-name">${esc(r.label)}</span><span class="dash-pocket-bal ${r.bal >= 0 ? 'positive' : 'negative'}">${fmt(r.bal)}</span></div>`
       ).join('') + '</div>';
     }
-    const attrs = hasPocket
-      ? ` role="button" tabindex="0" aria-expanded="${open}" onclick="toggleSupportPockets('${esc(sp.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSupportPockets('${esc(sp.id)}')}"`
-      : '';
-    return `<div class="dash-tile${hasPocket ? ' clickable' : ''}${open ? ' open' : ''}"${attrs}>
-      <div class="dash-tile-icon"><i class="ti ${esc(sp.icon)}"></i></div>
-      <div class="dash-tile-name">${esc(sp.label)}${hasPocket ? `<i class="ti ti-chevron-${open ? 'up' : 'down'}"></i>` : ''}</div>
+    // Toute la tuile ouvre la liste des transactions du support ; pour les supports à poches,
+    // le dépliage des poches se fait avec le bouton « Poches » (qui n'ouvre pas la liste).
+    const id = esc(sp.id);
+    const toggle = hasPocket
+      ? `<button class="dash-pocket-toggle" aria-expanded="${open}" aria-label="${open ? 'Masquer' : 'Afficher'} les poches de ${esc(sp.label)}" onclick="event.stopPropagation();toggleSupportPockets('${id}')">Poches<i class="ti ti-chevron-${open ? 'up' : 'down'}"></i></button>`
+      : `<i class="ti ti-chevron-right dash-tile-go"></i>`;
+    return `<div class="dash-tile clickable${open ? ' open' : ''}" role="button" tabindex="0" onclick="openSupport('${id}')" onkeydown="if(event.target===this&&(event.key==='Enter'||event.key===' ')){event.preventDefault();openSupport('${id}')}">
+      <div class="dash-tile-top">
+        <div class="dash-tile-icon" style="background:${supportColors(sp.id).bg}"><i class="ti ${esc(sp.icon)}"></i></div>
+        ${toggle}
+      </div>
+      <div class="dash-tile-name">${esc(sp.label)}</div>
       <div class="dash-tile-balance ${bal >= 0 ? 'positive' : 'negative'}">${fmt(bal)}</div>
       ${detail}
     </div>`;
@@ -1755,6 +1803,82 @@ function renderDashboard() {
   el.innerHTML = `<div class="section-title">Soldes au ${todayStr().split('-').reverse().join('/')}</div>
     <div class="dash-grid">${tiles}</div>
     <button class="btn-secondary" onclick="showPage('settings')"><i class="ti ti-settings" style="margin-right:6px"></i>Gérer les supports</button>`;
+}
+
+// ===== DÉTAIL D'UN SUPPORT : transactions du mois, avec filtre par poche =====
+let supportViewId = null;
+let supportViewPocket;   // undefined = toutes les poches, null = non affecté, sinon l'id d'une poche
+
+function openSupport(id) {
+  if (selectMode) exitSelectMode();
+  supportViewId = id;
+  supportViewPocket = undefined;
+  showPage('support');
+}
+function setSupportPocket(key) {
+  supportViewPocket = key === '*' ? undefined : (key === '__none' ? null : key);
+  renderSupportDetail();
+}
+function txTouches(t, ctx) {
+  return t.type === 'transfer'
+    ? (slotMatches(ctx, t.from, t.fromPocket) || slotMatches(ctx, t.to, t.toPocket))
+    : txParts(t).some(x => slotMatches(ctx, x.support, x.pocket));
+}
+function renderSupportDetail() {
+  if (!supportViewId) return;
+  const el = document.getElementById('support-content');
+  const sp = getSupportById(supportViewId);
+  if (!sp) { supportViewId = null; return; }
+  const pockets = pocketsOf(sp);
+  // Poche supprimée entre-temps : retour à « toutes »
+  if (typeof supportViewPocket === 'string' && !getPocket(sp, supportViewPocket)) supportViewPocket = undefined;
+  const ctx = { support: sp.id, pocket: supportViewPocket };
+
+  const k = monthKey(viewYear, viewMonth);
+  const txs = transactions
+    .filter(t => t.date.startsWith(k) && txTouches(t, ctx))
+    .sort((a, b) => b.date !== a.date ? b.date.localeCompare(a.date) : b.id - a.id);
+
+  let bal, balLabel = 'Solde au ' + todayStr().split('-').reverse().join('/');
+  if (supportViewPocket === undefined) bal = supportBalance(sp.id);
+  else if (supportViewPocket === null) { bal = bucketBalance(sp.id, null); balLabel += ' · Non affecté'; }
+  else { bal = bucketBalance(sp.id, supportViewPocket); balLabel += ' · ' + getPocket(sp, supportViewPocket).label; }
+
+  let chipsHtml = '';
+  if (pockets.length) {
+    const neutral = { bg: 'var(--color-background-secondary)', fg: 'var(--color-text-primary)' };
+    const chip = (key, label, active, c) =>
+      `<button class="sup-chip${active ? ' active' : ''}" style="background:${c.bg};color:${c.fg}" onclick="setSupportPocket('${esc(key)}')">${esc(label)}</button>`;
+    const hasUnassigned = bucketBalance(sp.id, null) !== 0 || transactions.some(t => txTouches(t, { support: sp.id, pocket: null }));
+    chipsHtml = '<div class="sup-chips">'
+      + chip('*', 'Toutes', supportViewPocket === undefined, neutral)
+      + pockets.map(e => chip(e.id, e.label, supportViewPocket === e.id, supportColors(sp.id, e.id))).join('')
+      + (hasUnassigned ? chip('__none', 'Non affecté', supportViewPocket === null, supportColors(sp.id, null)) : '')
+      + '</div>';
+  }
+
+  el.innerHTML = `
+    <div class="analyse-head">
+      <div class="cat-row-icon" style="background:${supportColors(sp.id).bg}"><i class="ti ${esc(sp.icon)}" style="font-size:18px;color:var(--color-text-primary)"></i></div>
+      <div>
+        <div class="analyse-title">${esc(sp.label)}</div>
+        <div class="analyse-sub">${pockets.length ? pockets.length + ' poche' + (pockets.length > 1 ? 's' : '') : ''}</div>
+      </div>
+    </div>
+    <div class="balance-card" style="text-align:left">
+      <div class="balance-label">${esc(balLabel)}</div>
+      <span class="balance-amount ${bal >= 0 ? 'positive' : 'negative'}" style="font-size:26px">${fmt(bal)}</span>
+    </div>
+    ${chipsHtml}
+    <div class="month-nav">
+      <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
+      <span class="month-label">${MONTHS[viewMonth]} ${viewYear}</span>
+      <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
+    </div>
+    <div class="section-title">${txs.length} transaction${txs.length > 1 ? 's' : ''}</div>
+    <div class="transaction-list" id="support-list"></div>`;
+
+  renderList(document.getElementById('support-list'), txs, true, ctx);
 }
 
 // ===== SAUVEGARDE : export / import =====
