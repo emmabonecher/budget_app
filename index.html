@@ -178,6 +178,16 @@ body { background: #f0f0f0; }
 .form-group .pocket-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .form-group .pocket-row input.pocket-name { flex: 1; min-width: 0; width: auto; }
 .form-group .pocket-row input.pocket-initial { width: 96px; flex: none; }
+.amount-hint { font-size: 12px; color: var(--color-text-tertiary); margin-top: 4px; line-height: 1.4; }
+.link-btn { background: none; border: none; color: #378ADD; font-size: 13px; cursor: pointer; padding: 4px 0; font-family: var(--font-sans); }
+.split-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 0.5px solid var(--color-border-tertiary); }
+.form-group .split-line select, .form-group .split-line input { width: auto; min-width: 0; }
+.split-line .split-sup { flex: 1 1 130px; }
+.split-line .split-amt { flex: 0 0 96px; }
+.split-line .split-pocket { flex: 1 1 100%; order: 4; }
+.split-remaining { font-size: 13px; margin: 8px 0 4px; color: var(--color-text-secondary); }
+.split-remaining.ok { color: var(--color-text-success); }
+.split-remaining.over { color: var(--color-text-danger); }
 .form-group select { width: 100%; padding: 10px 12px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: var(--color-background-secondary); color: var(--color-text-primary); font-size: 15px; font-family: var(--font-sans); }
 .icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
 .icon-choice { aspect-ratio: 1; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: var(--color-background-secondary); font-size: 18px; color: var(--color-text-primary); cursor: pointer; display: flex; align-items: center; justify-content: center; }
@@ -305,7 +315,8 @@ body { background: #f0f0f0; }
     </div>
     <div class="form-group">
       <label>Montant (€)</label>
-      <input type="number" id="tx-amount" placeholder="0,00" min="0" step="0.01" />
+      <input type="number" id="tx-amount" placeholder="0,00" step="0.01" oninput="updateSplitRemaining('')" />
+      <div class="amount-hint" id="amount-hint">Un montant négatif (ex. −30) est un remboursement : il diminue vos dépenses.</div>
     </div>
     <div class="form-group" id="grp-cat">
       <label>Catégorie</label>
@@ -314,13 +325,23 @@ body { background: #f0f0f0; }
         <i class="ti ti-chevron-down"></i>
       </div>
     </div>
-    <div class="form-group">
+    <div class="form-group" id="grp-support">
       <label id="lbl-support">Support</label>
       <select id="tx-support" onchange="onSupportPick('', 'from')"></select>
     </div>
     <div class="form-group" id="grp-pocket" style="display:none">
       <label id="lbl-pocket">Poche</label>
       <select id="tx-pocket"></select>
+    </div>
+    <div class="form-group" id="grp-split-toggle" style="display:none">
+      <button type="button" class="link-btn" onclick="toggleSplit('', true)"><i class="ti ti-arrows-split-2"></i> Répartir sur plusieurs supports</button>
+    </div>
+    <div class="form-group" id="grp-split" style="display:none">
+      <label>Répartition par support</label>
+      <div id="split-lines"></div>
+      <button type="button" class="add-cat-btn" onclick="addSplitLine('')"><i class="ti ti-plus"></i> Ajouter un support</button>
+      <div class="split-remaining" id="split-remaining"></div>
+      <button type="button" class="link-btn" onclick="toggleSplit('', false)">Un seul support</button>
     </div>
     <div class="form-group" id="grp-support-to" style="display:none">
       <label>Support cible</label>
@@ -381,7 +402,8 @@ body { background: #f0f0f0; }
     </div>
     <div class="form-group">
       <label>Montant (€)</label>
-      <input type="number" id="edit-tx-amount" placeholder="0,00" min="0" step="0.01" />
+      <input type="number" id="edit-tx-amount" placeholder="0,00" step="0.01" oninput="updateSplitRemaining('edit-')" />
+      <div class="amount-hint" id="edit-amount-hint">Un montant négatif (ex. −30) est un remboursement : il diminue vos dépenses.</div>
     </div>
     <div class="form-group" id="edit-grp-cat">
       <label>Catégorie</label>
@@ -390,13 +412,23 @@ body { background: #f0f0f0; }
         <i class="ti ti-chevron-down"></i>
       </div>
     </div>
-    <div class="form-group">
+    <div class="form-group" id="edit-grp-support">
       <label id="edit-lbl-support">Support</label>
       <select id="edit-tx-support" onchange="onSupportPick('edit-', 'from')"></select>
     </div>
     <div class="form-group" id="edit-grp-pocket" style="display:none">
       <label id="edit-lbl-pocket">Poche</label>
       <select id="edit-tx-pocket"></select>
+    </div>
+    <div class="form-group" id="edit-grp-split-toggle" style="display:none">
+      <button type="button" class="link-btn" onclick="toggleSplit('edit-', true)"><i class="ti ti-arrows-split-2"></i> Répartir sur plusieurs supports</button>
+    </div>
+    <div class="form-group" id="edit-grp-split" style="display:none">
+      <label>Répartition par support</label>
+      <div id="edit-split-lines"></div>
+      <button type="button" class="add-cat-btn" onclick="addSplitLine('edit-')"><i class="ti ti-plus"></i> Ajouter un support</button>
+      <div class="split-remaining" id="edit-split-remaining"></div>
+      <button type="button" class="link-btn" onclick="toggleSplit('edit-', false)">Un seul support</button>
     </div>
     <div class="form-group" id="edit-grp-support-to" style="display:none">
       <label>Support cible</label>
@@ -628,6 +660,18 @@ function migrateTxList(list, supports) {
       if (t.toPocket !== undefined && !pocketOk(t.to, t.toPocket)) { delete t.toPocket; changed = true; }
       return;
     }
+    if (t.splits !== undefined) {
+      const snap = JSON.stringify(t);
+      if (!Array.isArray(t.splits)) delete t.splits;
+      else {
+        t.splits.forEach(x => {
+          if (!valid.has(x.support)) { x.support = first; delete x.pocket; }
+          if (x.pocket !== undefined && !pocketOk(x.support, x.pocket)) delete x.pocket;
+        });
+        collapseSplits(t);
+      }
+      if (JSON.stringify(t) !== snap) changed = true;
+    }
     if (!t.support || !valid.has(t.support)) {
       const target = t.payment === 'cash' ? 'sup-cash' : 'sup-card';
       t.support = valid.has(target) ? target : first;
@@ -649,6 +693,30 @@ function todayStr() {
   const d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
+function round2(n) { return Math.round(n * 100) / 100; }
+// Parts d'une dépense ou d'une recette : sa répartition sur plusieurs supports (t.splits), sinon un seul support.
+function txParts(t) {
+  if (Array.isArray(t.splits) && t.splits.length) return t.splits;
+  return [{ support: t.support, pocket: t.pocket || undefined, amount: t.amount }];
+}
+// Fusionne les parts identiques (même support et même poche). Une seule part restante redevient une transaction simple.
+// Le support et la poche de la transaction reprennent toujours ceux de la première part.
+function collapseSplits(t) {
+  if (!Array.isArray(t.splits)) return;
+  const merged = new Map();
+  t.splits.forEach(s => {
+    const k = s.support + '|' + (s.pocket || '');
+    const cur = merged.get(k);
+    if (cur) cur.amount = round2(cur.amount + s.amount);
+    else merged.set(k, { support: s.support, ...(s.pocket ? { pocket: s.pocket } : {}), amount: s.amount });
+  });
+  const parts = [...merged.values()];
+  if (parts.length <= 1) delete t.splits; else t.splits = parts;
+  if (parts[0]) {
+    t.support = parts[0].support;
+    if (parts[0].pocket) t.pocket = parts[0].pocket; else delete t.pocket;
+  }
+}
 // Solde à l'instant présent : solde de départ + mouvements datés d'aujourd'hui ou avant
 function supportBalance(id) {
   const sp = getSupportById(id);
@@ -657,7 +725,7 @@ function supportBalance(id) {
   transactions.forEach(t => {
     if (t.date > today) return;
     if (t.type === 'transfer') { if (t.from === id) b -= t.amount; if (t.to === id) b += t.amount; }
-    else if (t.support === id) b += t.type === 'income' ? t.amount : -t.amount;
+    else txParts(t).forEach(x => { if (x.support === id) b += t.type === 'income' ? x.amount : -x.amount; });
   });
   return Math.round(b * 100) / 100 + 0;
 }
@@ -675,7 +743,9 @@ function bucketBalance(supId, pocketId) {
     if (t.type === 'transfer') {
       if (t.from === supId && (t.fromPocket || null) === pocketId) b -= t.amount;
       if (t.to === supId && (t.toPocket || null) === pocketId) b += t.amount;
-    } else if (t.support === supId && (t.pocket || null) === pocketId) b += t.type === 'income' ? t.amount : -t.amount;
+    } else txParts(t).forEach(x => {
+      if (x.support === supId && (x.pocket || null) === pocketId) b += t.type === 'income' ? x.amount : -x.amount;
+    });
   });
   return Math.round(b * 100) / 100 + 0;
 }
@@ -691,8 +761,8 @@ function fillSupportSelect(selectId, selected) {
 // Liste des poches d'un support dans un <select>. Un support qui a des poches impose d'en choisir une :
 // « Sans poche » n'est proposé que pour une ancienne transaction qui n'en avait pas.
 // selected : id de poche, '' pour une transaction sans poche, null/undefined pour le choix par défaut.
-function fillPocketSelect(selectId, supportId, selected) {
-  const sel = document.getElementById(selectId);
+function fillPocketSelect(selectId, supportId, selected) { fillPocketOptions(document.getElementById(selectId), supportId, selected); }
+function fillPocketOptions(sel, supportId, selected) {
   const pockets = pocketsOf(getSupportById(supportId));
   const allowNone = selected === '' && pockets.length > 0;
   sel.innerHTML = pockets.map(e => `<option value="${esc(e.id)}">${esc(e.label)}</option>`).join('')
@@ -702,12 +772,122 @@ function fillPocketSelect(selectId, supportId, selected) {
   if (v == null || (v === '' ? !allowNone : !pockets.some(e => e.id === v))) v = pockets.length ? pockets[0].id : '';
   sel.value = v;
 }
-// Les listes de poches n'apparaissent que si le support choisi en a
+// Les listes de poches n'apparaissent que si le support choisi en a.
+// En mode « répartition », la liste des lignes remplace le support et la poche uniques.
 function updatePocketVisibility(p) {
   const type = p ? editTxType : txType;
   const has = id => document.getElementById(id).options.length > 0;
-  document.getElementById(p + 'grp-pocket').style.display = has(p + 'tx-pocket') ? 'block' : 'none';
-  document.getElementById(p + 'grp-pocket-to').style.display = (type === 'transfer' && has(p + 'tx-pocket-to')) ? 'block' : 'none';
+  const split = !!splitOn[p] && type === 'expense';
+  const canSplit = type === 'expense' && (SUPPORTS.length > 1 || SUPPORTS.some(sp => pocketsOf(sp).length > 0));
+  const show = (id, on) => { document.getElementById(p + id).style.display = on ? 'block' : 'none'; };
+  show('grp-support', !split);
+  show('grp-pocket', !split && has(p + 'tx-pocket'));
+  show('grp-pocket-to', type === 'transfer' && has(p + 'tx-pocket-to'));
+  show('grp-split-toggle', !split && canSplit);
+  show('grp-split', split);
+  if (split) updateSplitRemaining(p);
+}
+
+// ===== Répartition d'une dépense (ou recette) sur plusieurs supports =====
+const splitOn = { '': false, 'edit-': false };
+function splitPick(el) { return el.closest('.split-line'); }
+function addSplitLine(p, line) {
+  const box = document.getElementById(p + 'split-lines');
+  if (!line) {
+    // Nouvelle ligne : un support pas encore utilisé si possible
+    const used = new Set(readSplitLines(p).map(l => l.support));
+    const sp = SUPPORTS.find(x => !used.has(x.id)) || SUPPORTS[0];
+    line = { support: sp.id, pocket: null, amount: null };
+  }
+  const div = document.createElement('div');
+  div.className = 'split-line';
+  div.innerHTML = `<select class="split-sup" onchange="onSplitSupport(this, '${p}')">${SUPPORTS.map(sp => `<option value="${esc(sp.id)}">${esc(sp.label)}</option>`).join('')}</select>`
+    + `<input type="number" class="split-amt" step="0.01" placeholder="0,00" oninput="updateSplitRemaining('${p}')" />`
+    + `<button type="button" class="icon-btn danger" aria-label="Retirer cette ligne" onclick="removeSplitLine(this, '${p}')"><i class="ti ti-trash"></i></button>`
+    + `<select class="split-pocket"></select>`;
+  box.appendChild(div);
+  const supSel = div.querySelector('.split-sup'), pocketSel = div.querySelector('.split-pocket');
+  supSel.value = getSupportById(line.support) ? line.support : SUPPORTS[0].id;
+  fillPocketOptions(pocketSel, supSel.value, line.pocket);
+  pocketSel.style.display = pocketSel.options.length ? '' : 'none';
+  if (line.amount != null) div.querySelector('.split-amt').value = line.amount;
+  updateSplitRemaining(p);
+}
+function onSplitSupport(supSel, p) {
+  const pocketSel = splitPick(supSel).querySelector('.split-pocket');
+  fillPocketOptions(pocketSel, supSel.value, null);
+  pocketSel.style.display = pocketSel.options.length ? '' : 'none';
+}
+function removeSplitLine(btn, p) {
+  const box = document.getElementById(p + 'split-lines');
+  if (box.querySelectorAll('.split-line').length <= 2) { alert('Une répartition a besoin d\'au moins deux lignes. Utilisez « Un seul support » pour revenir à un seul support.'); return; }
+  splitPick(btn).remove();
+  updateSplitRemaining(p);
+}
+function readSplitLines(p) {
+  return [...document.querySelectorAll('#' + p + 'split-lines .split-line')].map(div => {
+    const pocketSel = div.querySelector('.split-pocket');
+    const raw = div.querySelector('.split-amt').value;
+    return {
+      div, raw,
+      support: div.querySelector('.split-sup').value,
+      pocket: pocketSel.options.length ? pocketSel.value : '',
+      amount: raw === '' ? NaN : parseFloat(raw)
+    };
+  });
+}
+function updateSplitRemaining(p) {
+  if (!splitOn[p]) return;
+  const out = document.getElementById(p + 'split-remaining');
+  const total = parseFloat(document.getElementById(p + 'tx-amount').value);
+  const lines = readSplitLines(p);
+  const sum = round2(lines.reduce((a, l) => a + (isNaN(l.amount) ? 0 : l.amount), 0));
+  const rem = isNaN(total) ? NaN : round2(total - sum);
+  const sign = total < 0 ? -1 : 1;     // un remboursement (total négatif) se répartit en montants négatifs
+  // Une seule ligne vide : son montant sera complété automatiquement avec le reste
+  const empty = lines.filter(l => l.raw === '');
+  lines.forEach(l => { if (l.raw === '') l.div.querySelector('.split-amt').placeholder = (empty.length === 1 && rem * sign > 0) ? rem.toFixed(2) : '0,00'; });
+  out.className = 'split-remaining';
+  if (isNaN(total) || total === 0) { out.textContent = 'Saisissez d\'abord le montant total ci-dessus.'; return; }
+  if (Math.abs(rem) < 0.005) { out.textContent = 'Réparti : ' + fmt(total) + ' ✓'; out.classList.add('ok'); }
+  else if (rem * sign > 0) out.textContent = 'Reste à répartir : ' + fmt(rem);
+  else { out.textContent = 'Dépassement de ' + fmt(Math.abs(rem)); out.classList.add('over'); }
+}
+function toggleSplit(p, on) {
+  const box = document.getElementById(p + 'split-lines');
+  if (on) {
+    splitOn[p] = true;
+    box.innerHTML = '';
+    // 1re ligne : le support déjà choisi ; 2e ligne : un autre support
+    addSplitLine(p, { support: document.getElementById(p + 'tx-support').value, pocket: readPocket(p + 'tx-pocket') || null, amount: null });
+    addSplitLine(p);
+  } else {
+    // Retour à un seul support : on garde le support de la première ligne
+    const first = readSplitLines(p)[0];
+    splitOn[p] = false;
+    if (first) {
+      document.getElementById(p + 'tx-support').value = first.support;
+      fillPocketSelect(p + 'tx-pocket', first.support, first.pocket || null);
+    }
+    box.innerHTML = '';
+  }
+  updatePocketVisibility(p);
+}
+// Lit la répartition saisie : renvoie { parts } ou { error }. Une seule ligne sans montant reçoit le reste.
+function collectSplits(p, total) {
+  const lines = readSplitLines(p);
+  const empty = lines.filter(l => l.raw === '');
+  if (empty.length === 1) {
+    const others = round2(lines.filter(l => l.raw !== '').reduce((a, l) => a + (isNaN(l.amount) ? 0 : l.amount), 0));
+    if ((total - others) * (total < 0 ? -1 : 1) > 0.004) { empty[0].amount = round2(total - others); empty[0].raw = String(empty[0].amount); }
+  }
+  // Chaque ligne a le même signe que le total (un remboursement se répartit en montants négatifs)
+  if (lines.some(l => isNaN(l.amount) || l.amount === 0 || l.amount * total < 0)) {
+    return { error: total < 0 ? 'Chaque ligne de la répartition doit avoir un montant négatif, comme le total.' : 'Chaque ligne de la répartition doit avoir un montant supérieur à 0.' };
+  }
+  const sum = round2(lines.reduce((a, l) => a + l.amount, 0));
+  if (Math.abs(sum - total) > 0.004) return { error: 'La répartition (' + fmt(sum) + ') ne correspond pas au montant total (' + fmt(total) + ').' };
+  return { parts: lines.map(l => ({ support: l.support, ...(l.pocket ? { pocket: l.pocket } : {}), amount: round2(l.amount) })) };
 }
 function onSupportPick(p, side) {
   const q = id => document.getElementById(p + id);
@@ -744,11 +924,11 @@ function updateDisplays() {
   renderAnalyse();
 }
 
-function supportBadge(id, pocketId) {
+function supportBadge(id, pocketId, amount) {
   const sp = getSupportById(id);
   if (!sp) return '';
   const pocket = pocketId ? getPocket(sp, pocketId) : null;
-  return `<span class="tx-payment-badge card"><i class="ti ${esc(sp.icon)}" style="font-size:10px"></i>${esc(sp.label)}${pocket ? ' · ' + esc(pocket.label) : ''}</span>`;
+  return `<span class="tx-payment-badge card"><i class="ti ${esc(sp.icon)}" style="font-size:10px"></i>${esc(sp.label)}${pocket ? ' · ' + esc(pocket.label) : ''}${amount != null ? ' · ' + fmt(amount) : ''}</span>`;
 }
 
 function renderList(el, txs, withActions) {
@@ -757,14 +937,15 @@ function renderList(el, txs, withActions) {
     const cat=getCatById(t.cat);
     let icon=cat?cat.icon:'ti-box', bg=cat?cat.color:'#F1EFE8';
     let catLabel=cat?(cat.group?cat.group+' · '+cat.label:cat.label):'Catégorie supprimée';
-    let name=esc(t.desc), badges=supportBadge(t.support, t.pocket), amountHtml;
+    let name=esc(t.desc), badges=(Array.isArray(t.splits) ? t.splits.map(x => supportBadge(x.support, x.pocket, x.amount)).join(' ') : supportBadge(t.support, t.pocket)), amountHtml;
     if (t.type==='transfer') {
       icon='ti-arrows-exchange'; bg='#E6F1FB'; catLabel=''; name='Transfert';
       badges=supportBadge(t.from, t.fromPocket)+' <i class="ti ti-arrow-right" style="font-size:11px"></i> '+supportBadge(t.to, t.toPocket);
       amountHtml=`<div class="tx-amount" style="color:var(--color-text-info)">${fmt(t.amount)}</div>`;
     } else {
       if (t.type==='income' && !cat) { icon='ti-arrow-down'; bg='#EAF3DE'; catLabel='Recette'; }
-      amountHtml=`<div class="tx-amount ${t.type==='income'?'pos':'neg'}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</div>`;
+      const delta = t.type==='income' ? t.amount : -t.amount;   // effet sur le solde
+      amountHtml=`<div class="tx-amount ${delta>=0?'pos':'neg'}">${delta>=0?'+':'-'}${fmt(Math.abs(delta))}</div>`;
     }
     const isSelected = selectedIds.has(t.id);
     const checkbox = withActions && selectMode ? `<div class="tx-checkbox">${isSelected?'<i class="ti ti-check" style="font-size:12px;color:white"></i>':''}</div>` : '';
@@ -816,7 +997,7 @@ function renderBudgetPage(txs) {
       const spent = txs.filter(t=>t.type==='expense'&&t.cat===cat.id).reduce((s,t)=>s+t.amount,0);
       const budget = getBudgetForCat(cat.id);
       const hasCatBudget = budget !== null;
-      const pct = (hasCatBudget && budget > 0) ? Math.min(100,Math.round(spent/budget*100)) : 0;
+      const pct = (hasCatBudget && budget > 0) ? Math.max(0,Math.min(100,Math.round(spent/budget*100))) : 0;
       const color = pct>90?'#E24B4A':pct>70?'#EF9F27':'#1D9E75';
       let amountsHtml;
       if (hasCatBudget) {
@@ -829,7 +1010,7 @@ function renderBudgetPage(txs) {
           <span class="budget-cat"><i class="ti ${cat.icon}" style="margin-right:6px;font-size:14px"></i>${cat.label}</span>
           <span class="budget-amounts">${amountsHtml}</span>
         </div>
-        ${hasCatBudget ? `<div class="progress-bar"><div class="progress-fill" style="width:${budget === 0 ? 100 : pct}%;background:${budget === 0 ? (spent === 0 ? '#1D9E75' : '#E24B4A') : color}"></div></div>` : ''}
+        ${hasCatBudget ? `<div class="progress-bar"><div class="progress-fill" style="width:${budget === 0 ? 100 : pct}%;background:${budget === 0 ? (spent <= 0 ? '#1D9E75' : '#E24B4A') : color}"></div></div>` : ''}
       </div>`;
     });
   });
@@ -886,6 +1067,7 @@ function openModal() {
   fillSupportSelect('tx-support-to', defaultToSupport(document.getElementById('tx-support').value));
   fillPocketSelect('tx-pocket', document.getElementById('tx-support').value, null);
   fillPocketSelect('tx-pocket-to', document.getElementById('tx-support-to').value, null);
+  splitOn[''] = false; document.getElementById('split-lines').innerHTML = '';
   document.getElementById('selected-cat-label').textContent='Choisir une catégorie';
   document.getElementById('selected-cat-label').style.color='var(--color-text-secondary)';
   document.getElementById('tx-date').value=todayStr();
@@ -910,6 +1092,7 @@ function applyTypeUI(p, type) {
   q('btn-transfer').className = 'type-btn' + (type==='transfer' ? ' active-transfer' : '');
   q('grp-desc').style.display = type==='transfer' ? 'none' : 'block';
   q('grp-cat').style.display = type==='expense' ? 'block' : 'none';
+  q('amount-hint').style.display = type==='expense' ? 'block' : 'none';
   q('grp-support-to').style.display = type==='transfer' ? 'block' : 'none';
   q('lbl-support').textContent = type==='transfer' ? 'Support de départ' : 'Support';
   q('lbl-pocket').textContent = type==='transfer' ? 'Poche de départ' : 'Poche';
@@ -957,6 +1140,7 @@ function addTransaction() {
   if (txType==='transfer') {
     const to=document.getElementById('tx-support-to').value;
     const fromPocket=readPocket('tx-pocket'), toPocket=readPocket('tx-pocket-to');
+    if(amount<0){alert('Un montant négatif n\'est possible que pour une dépense.');return;}
     if(!amount||amount<=0||!date){alert('Veuillez remplir tous les champs.');return;}
     if(support===to&&fromPocket===toPocket){alert('Le départ et la cible doivent être différents (support ou poche).');return;}
     tx={id:Date.now(),type:'transfer',desc:'',amount,date,from:support,to};
@@ -964,14 +1148,17 @@ function addTransaction() {
     if(toPocket) tx.toPocket=toPocket;
   } else {
     const desc=document.getElementById('tx-desc').value.trim();
-    if(!desc||!amount||amount<=0||!date){alert('Veuillez remplir tous les champs.');return;}
+    if(txType==='income'&&amount<0){alert('Un montant négatif n\'est possible que pour une dépense.');return;}
+    if(!desc||!amount||(txType==='income'&&amount<=0)||!date){alert('Veuillez remplir tous les champs.');return;}
     if(txType==='expense'&&!selectedCatId){alert('Veuillez choisir une catégorie.');return;}
+    let parts=null;
+    if(txType==='expense'&&splitOn['']){ const r=collectSplits('',amount); if(r.error){alert(r.error);return;} parts=r.parts; }
     const pocket=readPocket('tx-pocket');
     tx={id:Date.now(),type:txType,desc,amount,date,support};
-    if(pocket) tx.pocket=pocket;
+    if(parts){ tx.splits=parts; collapseSplits(tx); }
+    else if(pocket) tx.pocket=pocket;
     if(txType==='expense') tx.cat=selectedCatId;
-    lastSupportId=support;
-    lastPocketBySupport[support]=pocket;
+    txParts(tx).forEach(x => { lastSupportId=x.support; lastPocketBySupport[x.support]=x.pocket||''; });
   }
   transactions.push(tx); save(); closeModal(); updateDisplays();
 }
@@ -1102,6 +1289,11 @@ function startEditTransaction() {
   const el = document.getElementById('edit-selected-cat-label');
   if (cat) { el.textContent = cat.group ? cat.group+' · '+cat.label : cat.label; el.style.color = 'var(--color-text-primary)'; }
   else { el.textContent = 'Choisir une catégorie'; el.style.color = 'var(--color-text-secondary)'; }
+  splitOn['edit-'] = false; document.getElementById('edit-split-lines').innerHTML = '';
+  if (t.type === 'expense' && Array.isArray(t.splits) && t.splits.length > 1) {
+    splitOn['edit-'] = true;
+    t.splits.forEach(x => addSplitLine('edit-', { support: x.support, pocket: x.pocket || '', amount: x.amount }));
+  }
   applyTypeUI('edit-', t.type);
   document.getElementById('edit-modal').classList.add('open');
 }
@@ -1158,6 +1350,7 @@ function saveEditTransaction() {
   if (editTxType === 'transfer') {
     const to = document.getElementById('edit-tx-support-to').value;
     const fromPocket = readPocket('edit-tx-pocket'), toPocket = readPocket('edit-tx-pocket-to');
+    if (amount < 0) { alert('Un montant négatif n\'est possible que pour une dépense.'); return; }
     if (!amount||amount<=0||!date) { alert('Veuillez remplir tous les champs.'); return; }
     if (support === to && fromPocket === toPocket) { alert('Le départ et la cible doivent être différents (support ou poche).'); return; }
     nt = { id: old.id, type: 'transfer', desc: '', amount, date, from: support, to };
@@ -1165,11 +1358,15 @@ function saveEditTransaction() {
     if (toPocket) nt.toPocket = toPocket;
   } else {
     const desc = document.getElementById('edit-tx-desc').value.trim();
-    if (!desc||!amount||amount<=0||!date) { alert('Veuillez remplir tous les champs.'); return; }
+    if (editTxType === 'income' && amount < 0) { alert('Un montant négatif n\'est possible que pour une dépense.'); return; }
+    if (!desc||!amount||(editTxType === 'income' && amount <= 0)||!date) { alert('Veuillez remplir tous les champs.'); return; }
     if (editTxType === 'expense' && !editSelectedCatId) { alert('Veuillez choisir une catégorie.'); return; }
+    let parts = null;
+    if (editTxType === 'expense' && splitOn['edit-']) { const r = collectSplits('edit-', amount); if (r.error) { alert(r.error); return; } parts = r.parts; }
     const pocket = readPocket('edit-tx-pocket');
     nt = { id: old.id, type: editTxType, desc, amount, date, support };
-    if (pocket) nt.pocket = pocket;
+    if (parts) { nt.splits = parts; collapseSplits(nt); }
+    else if (pocket) nt.pocket = pocket;
     if (editTxType === 'expense') nt.cat = editSelectedCatId;
     else if (old.type === 'income' && old.cat) nt.cat = old.cat;   // on garde l'ancienne catégorie d'une recette existante
   }
@@ -1441,13 +1638,17 @@ function saveSupportEdit() {
     if (removed.size) {
       const used = transactions.filter(t => t.type === 'transfer'
         ? (t.from === sp.id && removed.has(t.fromPocket)) || (t.to === sp.id && removed.has(t.toPocket))
-        : t.support === sp.id && removed.has(t.pocket)).length;
+        : txParts(t).some(x => x.support === sp.id && removed.has(x.pocket))).length;
       if (used && !confirm(used + ' transaction(s) utilisent une poche supprimée. Elles seront conservées sur « ' + sp.label + ' » sans poche. Continuer ?')) return;
       transactions.forEach(t => {
         if (t.type === 'transfer') {
           if (t.from === sp.id && removed.has(t.fromPocket)) delete t.fromPocket;
           if (t.to === sp.id && removed.has(t.toPocket)) delete t.toPocket;
-        } else if (t.support === sp.id && removed.has(t.pocket)) delete t.pocket;
+        } else {
+          if (Array.isArray(t.splits)) t.splits.forEach(x => { if (x.support === sp.id && removed.has(x.pocket)) delete x.pocket; });
+          if (t.support === sp.id && removed.has(t.pocket)) delete t.pocket;
+          collapseSplits(t);
+        }
       });
       removed.forEach(id => { if (lastPocketBySupport[sp.id] === id) delete lastPocketBySupport[sp.id]; });
       save();
@@ -1463,7 +1664,7 @@ function deleteSupport(id) {
   if (!sp) return;
   if (SUPPORTS.length <= 1) { alert('Il faut conserver au moins un support.'); return; }
   const target = SUPPORTS.find(x => x.id !== id);
-  const touches = t => t.type === 'transfer' ? (t.from === id || t.to === id) : t.support === id;
+  const touches = t => t.type === 'transfer' ? (t.from === id || t.to === id) : txParts(t).some(x => x.support === id);
   const moved = transactions.filter(touches).length;
   // Un transfert entre le support supprimé et le support de repli n'aurait plus de sens
   // (les poches du support supprimé disparaissent avec lui : le côté déplacé n'a plus de poche)
@@ -1481,7 +1682,11 @@ function deleteSupport(id) {
     if (t.type === 'transfer') {
       if (t.from === id) { t.from = target.id; delete t.fromPocket; }
       if (t.to === id) { t.to = target.id; delete t.toPocket; }
-    } else if (t.support === id) { t.support = target.id; delete t.pocket; }
+    } else {
+      if (Array.isArray(t.splits)) t.splits.forEach(x => { if (x.support === id) { x.support = target.id; delete x.pocket; } });
+      if (t.support === id) { t.support = target.id; delete t.pocket; }
+      collapseSplits(t);
+    }
   });
   transactions = transactions.filter(t => !pointless.has(t.id));
   SUPPORTS = SUPPORTS.filter(x => x.id !== id);
@@ -1565,6 +1770,12 @@ function validTx(t) {
   if (t.type === 'transfer') return typeof t.from === 'string' && typeof t.to === 'string';
   if (t.type !== 'income' && t.type !== 'expense') return false;
   if (typeof t.desc !== 'string') return false;
+  if (t.splits !== undefined) {
+    if (t.type !== 'expense' || !Array.isArray(t.splits) || t.splits.length < 2
+        || !t.splits.every(x => x && typeof x.support === 'string' && Number.isFinite(x.amount) && x.amount !== 0 && x.amount * t.amount > 0
+            && (x.pocket === undefined || typeof x.pocket === 'string'))
+        || Math.abs(t.splits.reduce((a, x) => a + x.amount, 0) - t.amount) > 0.01) return false;
+  }
   return t.type === 'income' ? (t.cat == null || typeof t.cat === 'string') : typeof t.cat === 'string';
 }
 function validCat(x) {
@@ -1726,9 +1937,9 @@ function renderAnalyse() {
 
   let budgetHtml = '';
   if (budget !== null) {
-    const pct = budget > 0 ? Math.min(100, Math.round(spent / budget * 100)) : 100;
+    const pct = budget > 0 ? Math.max(0, Math.min(100, Math.round(spent / budget * 100))) : 100;
     const color = budget === 0
-      ? (spent === 0 ? '#1D9E75' : '#E24B4A')
+      ? (spent <= 0 ? '#1D9E75' : '#E24B4A')
       : (pct > 90 ? '#E24B4A' : pct > 70 ? '#EF9F27' : '#1D9E75');
     const left = budget - spent;
     budgetHtml = `<div class="progress-bar" style="margin:12px 0 8px"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
