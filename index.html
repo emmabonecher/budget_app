@@ -178,6 +178,10 @@ body { background: #f0f0f0; }
 .form-group .pocket-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .form-group .pocket-row input.pocket-name { flex: 1; min-width: 0; width: auto; }
 .form-group .pocket-row input.pocket-initial { width: 96px; flex: none; }
+.amount-row { display: flex; gap: 6px; align-items: stretch; }
+.form-group .amount-row input { flex: 1; min-width: 0; width: auto; }
+.sign-btn { flex: none; padding: 0 12px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); background: var(--color-background-secondary); color: var(--color-text-primary); font-size: 15px; font-family: var(--font-sans); cursor: pointer; }
+.split-line .sign-btn { padding: 9px 10px; }
 .amount-hint { font-size: 12px; color: var(--color-text-tertiary); margin-top: 4px; line-height: 1.4; }
 .link-btn { background: none; border: none; color: #378ADD; font-size: 13px; cursor: pointer; padding: 4px 0; font-family: var(--font-sans); }
 .split-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 0.5px solid var(--color-border-tertiary); }
@@ -315,7 +319,10 @@ body { background: #f0f0f0; }
     </div>
     <div class="form-group">
       <label>Montant (€)</label>
-      <input type="number" id="tx-amount" placeholder="0,00" step="0.01" oninput="updateSplitRemaining('')" />
+      <div class="amount-row">
+        <input type="text" inputmode="decimal" autocomplete="off" id="tx-amount" placeholder="0,00" oninput="updateSplitRemaining('')" />
+        <button type="button" class="sign-btn" id="sign-btn" aria-label="Changer le signe du montant (remboursement)" onclick="toggleSign(document.getElementById('tx-amount'), '')">+/−</button>
+      </div>
       <div class="amount-hint" id="amount-hint">Un montant négatif (ex. −30) est un remboursement : il diminue vos dépenses.</div>
     </div>
     <div class="form-group" id="grp-cat">
@@ -402,7 +409,10 @@ body { background: #f0f0f0; }
     </div>
     <div class="form-group">
       <label>Montant (€)</label>
-      <input type="number" id="edit-tx-amount" placeholder="0,00" step="0.01" oninput="updateSplitRemaining('edit-')" />
+      <div class="amount-row">
+        <input type="text" inputmode="decimal" autocomplete="off" id="edit-tx-amount" placeholder="0,00" oninput="updateSplitRemaining('edit-')" />
+        <button type="button" class="sign-btn" id="edit-sign-btn" aria-label="Changer le signe du montant (remboursement)" onclick="toggleSign(document.getElementById('edit-tx-amount'), 'edit-')">+/−</button>
+      </div>
       <div class="amount-hint" id="edit-amount-hint">Un montant négatif (ex. −30) est un remboursement : il diminue vos dépenses.</div>
     </div>
     <div class="form-group" id="edit-grp-cat">
@@ -694,6 +704,18 @@ function todayStr() {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
 function round2(n) { return Math.round(n * 100) / 100; }
+// Lit un montant saisi : accepte la virgule (12,5), le signe « − » et les espaces ; NaN si vide ou invalide
+function parseAmt(str) {
+  const v = String(str == null ? '' : str).trim().replace(/[−–]/g, '-').replace(/\s/g, '').replace(',', '.');
+  return /^-?(\d+\.?\d*|\.\d+)$/.test(v) ? parseFloat(v) : NaN;
+}
+// Bascule le signe du montant d'un champ (clavier sans touche « − »)
+function toggleSign(el, p) {
+  const v = el.value.trim().replace(/[−–]/g, '-');
+  el.value = v.startsWith('-') ? v.slice(1) : '-' + v;
+  el.focus();
+  updateSplitRemaining(p);
+}
 // Parts d'une dépense ou d'une recette : sa répartition sur plusieurs supports (t.splits), sinon un seul support.
 function txParts(t) {
   if (Array.isArray(t.splits) && t.splits.length) return t.splits;
@@ -802,7 +824,8 @@ function addSplitLine(p, line) {
   const div = document.createElement('div');
   div.className = 'split-line';
   div.innerHTML = `<select class="split-sup" onchange="onSplitSupport(this, '${p}')">${SUPPORTS.map(sp => `<option value="${esc(sp.id)}">${esc(sp.label)}</option>`).join('')}</select>`
-    + `<input type="number" class="split-amt" step="0.01" placeholder="0,00" oninput="updateSplitRemaining('${p}')" />`
+    + `<input type="text" inputmode="decimal" autocomplete="off" class="split-amt" placeholder="0,00" oninput="updateSplitRemaining('${p}')" />`
+    + `<button type="button" class="sign-btn" aria-label="Changer le signe du montant" onclick="toggleSign(this.parentNode.querySelector('.split-amt'), '${p}')">+/−</button>`
     + `<button type="button" class="icon-btn danger" aria-label="Retirer cette ligne" onclick="removeSplitLine(this, '${p}')"><i class="ti ti-trash"></i></button>`
     + `<select class="split-pocket"></select>`;
   box.appendChild(div);
@@ -827,26 +850,26 @@ function removeSplitLine(btn, p) {
 function readSplitLines(p) {
   return [...document.querySelectorAll('#' + p + 'split-lines .split-line')].map(div => {
     const pocketSel = div.querySelector('.split-pocket');
-    const raw = div.querySelector('.split-amt').value;
+    const raw = div.querySelector('.split-amt').value.trim();
     return {
-      div, raw,
+      div, raw, empty: raw === '' || raw === '-',
       support: div.querySelector('.split-sup').value,
       pocket: pocketSel.options.length ? pocketSel.value : '',
-      amount: raw === '' ? NaN : parseFloat(raw)
+      amount: parseAmt(raw)
     };
   });
 }
 function updateSplitRemaining(p) {
   if (!splitOn[p]) return;
   const out = document.getElementById(p + 'split-remaining');
-  const total = parseFloat(document.getElementById(p + 'tx-amount').value);
+  const total = parseAmt(document.getElementById(p + 'tx-amount').value);
   const lines = readSplitLines(p);
   const sum = round2(lines.reduce((a, l) => a + (isNaN(l.amount) ? 0 : l.amount), 0));
   const rem = isNaN(total) ? NaN : round2(total - sum);
   const sign = total < 0 ? -1 : 1;     // un remboursement (total négatif) se répartit en montants négatifs
   // Une seule ligne vide : son montant sera complété automatiquement avec le reste
-  const empty = lines.filter(l => l.raw === '');
-  lines.forEach(l => { if (l.raw === '') l.div.querySelector('.split-amt').placeholder = (empty.length === 1 && rem * sign > 0) ? rem.toFixed(2) : '0,00'; });
+  const empty = lines.filter(l => l.empty);
+  lines.forEach(l => { if (l.empty) l.div.querySelector('.split-amt').placeholder = (empty.length === 1 && rem * sign > 0) ? rem.toFixed(2) : '0,00'; });
   out.className = 'split-remaining';
   if (isNaN(total) || total === 0) { out.textContent = 'Saisissez d\'abord le montant total ci-dessus.'; return; }
   if (Math.abs(rem) < 0.005) { out.textContent = 'Réparti : ' + fmt(total) + ' ✓'; out.classList.add('ok'); }
@@ -876,10 +899,10 @@ function toggleSplit(p, on) {
 // Lit la répartition saisie : renvoie { parts } ou { error }. Une seule ligne sans montant reçoit le reste.
 function collectSplits(p, total) {
   const lines = readSplitLines(p);
-  const empty = lines.filter(l => l.raw === '');
+  const empty = lines.filter(l => l.empty);
   if (empty.length === 1) {
-    const others = round2(lines.filter(l => l.raw !== '').reduce((a, l) => a + (isNaN(l.amount) ? 0 : l.amount), 0));
-    if ((total - others) * (total < 0 ? -1 : 1) > 0.004) { empty[0].amount = round2(total - others); empty[0].raw = String(empty[0].amount); }
+    const others = round2(lines.filter(l => !l.empty).reduce((a, l) => a + (isNaN(l.amount) ? 0 : l.amount), 0));
+    if ((total - others) * (total < 0 ? -1 : 1) > 0.004) { empty[0].amount = round2(total - others); empty[0].empty = false; }
   }
   // Chaque ligne a le même signe que le total (un remboursement se répartit en montants négatifs)
   if (lines.some(l => isNaN(l.amount) || l.amount === 0 || l.amount * total < 0)) {
@@ -1093,6 +1116,7 @@ function applyTypeUI(p, type) {
   q('grp-desc').style.display = type==='transfer' ? 'none' : 'block';
   q('grp-cat').style.display = type==='expense' ? 'block' : 'none';
   q('amount-hint').style.display = type==='expense' ? 'block' : 'none';
+  q('sign-btn').style.display = type==='expense' ? '' : 'none';
   q('grp-support-to').style.display = type==='transfer' ? 'block' : 'none';
   q('lbl-support').textContent = type==='transfer' ? 'Support de départ' : 'Support';
   q('lbl-pocket').textContent = type==='transfer' ? 'Poche de départ' : 'Poche';
@@ -1133,7 +1157,7 @@ function selectCat(id) {
 }
 
 function addTransaction() {
-  const amount=parseFloat(document.getElementById('tx-amount').value);
+  const amount=parseAmt(document.getElementById('tx-amount').value);
   const date=document.getElementById('tx-date').value;
   const support=document.getElementById('tx-support').value;
   let tx;
@@ -1340,7 +1364,7 @@ function selectEditCat(id) {
   closeCatPicker();
 }
 function saveEditTransaction() {
-  const amount = parseFloat(document.getElementById('edit-tx-amount').value);
+  const amount = parseAmt(document.getElementById('edit-tx-amount').value);
   const date = document.getElementById('edit-tx-date').value;
   const support = document.getElementById('edit-tx-support').value;
   const idx = transactions.findIndex(t=>t.id===editTxId);
