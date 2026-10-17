@@ -349,16 +349,13 @@ body { background: #f0f0f0; }
   <button class="btn-secondary btn-danger-secondary" style="margin-top:24px" onclick="resetCategories()">Réinitialiser les catégories par défaut</button>
 
   <div class="section-title" style="margin-top:28px">Enveloppes</div>
-  <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:8px;line-height:1.4">Une enveloppe est un budget mensuel : chaque groupe de catégories est rattaché à Courant ou à Vacances. Les dépenses payées depuis un livret sont automatiquement « Exceptionnelles ».</p>
   <div id="envelopes-settings"></div>
 
   <div class="section-title" style="margin-top:28px">Supports</div>
-  <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:8px;line-height:1.4">Compte bancaire, espèces, tickets restaurant… Chaque dépense et chaque recette est rattachée à un support. Le solde de départ est le montant présent sur le support avant votre première transaction.</p>
   <div id="supports-settings"></div>
   <button class="add-cat-btn" onclick="openSupportEdit(null)"><i class="ti ti-plus"></i> Ajouter un support</button>
 
   <div class="section-title" style="margin-top:28px">Sauvegarde des données</div>
-  <p style="font-size:13px;color:var(--color-text-secondary);margin-bottom:6px;line-height:1.4">Vos données sont stockées sur cet appareil. Exportez-les régulièrement dans un fichier pour ne rien perdre.</p>
   <button class="btn-primary" onclick="exportData()"><i class="ti ti-download" style="margin-right:6px"></i>Exporter mes données</button>
   <button class="btn-secondary" onclick="document.getElementById('import-file').click()"><i class="ti ti-upload" style="margin-right:6px"></i>Importer une sauvegarde</button>
   <input type="file" id="import-file" accept=".json,application/json" style="display:none" onchange="importData(this.files[0]); this.value=''" />
@@ -1941,14 +1938,10 @@ function renderEnvelopesSettings() {
   const el = document.getElementById('envelopes-settings');
   if (!el) return;
   const savingsSupports = SUPPORTS.filter(sp => sp.savings);
-  const desc = {
-    courant: 'Dépenses du quotidien, payées depuis un compte, des espèces ou un autre support (hors livret).',
-    vacances: 'Provision mensuelle pour les vacances, payée depuis un support (hors livret).'
-  };
   el.innerHTML = ENVELOPES.map(e => {
     if (e.kind === 'exceptional') {
       return `<div class="env-card"><div class="env-card-title">${esc(e.label)}</div>
-        <p class="env-card-text">Dépenses payées directement depuis un livret. Elles ne pèsent pas sur le budget du mois, mais gardent leur catégorie pour les bilans. Rien à régler : elles sont reconnues automatiquement.</p></div>`;
+        </div>`;
     }
     const groups = GROUPS.filter(g => envelopeOfGroup(g) === e.id);
     const tg = ENV_TARGETS[e.id] || null;
@@ -1956,7 +1949,6 @@ function renderEnvelopesSettings() {
     const supOpts = '<option value="">Aucune</option>' + savingsSupports.map(sp => `<option value="${esc(sp.id)}"${tg && tg.support === sp.id ? ' selected' : ''}>${esc(sp.label)}</option>`).join('');
     const pocketOpts = tsp ? pocketsOf(tsp).map(p => `<option value="${esc(p.id)}"${tg.pocket === p.id ? ' selected' : ''}>${esc(p.label)}</option>`).join('') : '';
     return `<div class="env-card"><div class="env-card-title">${esc(e.label)}</div>
-      <p class="env-card-text">${desc[e.id] || ''}</p>
       <p class="env-card-text"><strong>Groupes :</strong> ${groups.length ? groups.map(esc).join(', ') : 'aucun (à choisir dans les groupes ci-dessus)'}</p>
       <div class="env-card-link">
         <label>Livret lié</label>
