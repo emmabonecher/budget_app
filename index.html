@@ -413,6 +413,9 @@ body { background: #f0f0f0; }
       <label>Poche cible</label>
       <select id="tx-pocket-to"></select>
     </div>
+    <div class="form-group" id="grp-advance" style="display:none">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="tx-advance" style="width:auto;margin:0" /> Avance (à rembourser au livret)</label>
+    </div>
     <div class="form-group">
       <label>Date</label>
       <input type="date" id="tx-date" />
@@ -502,6 +505,9 @@ body { background: #f0f0f0; }
     <div class="form-group" id="edit-grp-pocket-to" style="display:none">
       <label>Poche cible</label>
       <select id="edit-tx-pocket-to"></select>
+    </div>
+    <div class="form-group" id="edit-grp-advance" style="display:none">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="edit-tx-advance" style="width:auto;margin:0" /> Avance (à rembourser au livret)</label>
     </div>
     <div class="form-group">
       <label>Date</label>
@@ -959,6 +965,7 @@ function updatePocketVisibility(p) {
   show('grp-split-toggle', !split && canSplit);
   show('grp-split', split);
   if (split) updateSplitRemaining(p);
+  updateAdvanceVisibility(p);
 }
 
 // ===== Répartition d'une dépense (ou recette) sur plusieurs supports =====
@@ -1062,6 +1069,14 @@ function collectSplits(p, total) {
   const sum = round2(lines.reduce((a, l) => a + l.amount, 0));
   if (Math.abs(sum - total) > 0.004) return { error: 'La répartition (' + fmt(sum) + ') ne correspond pas au montant total (' + fmt(total) + ').' };
   return { parts: lines.map(l => ({ support: l.support, ...(l.pocket ? { pocket: l.pocket } : {}), amount: round2(l.amount) })) };
+}
+// La case « Avance » n'apparaît que pour un transfert qui part d'un livret
+function updateAdvanceVisibility(p) {
+  const type = p ? editTxType : txType;
+  const sp = getSupportById(document.getElementById(p + 'tx-support').value);
+  const show = type === 'transfer' && !!(sp && sp.savings);
+  document.getElementById(p + 'grp-advance').style.display = show ? 'block' : 'none';
+  if (!show) document.getElementById(p + 'tx-advance').checked = false;
 }
 function onSupportPick(p, side) {
   const q = id => document.getElementById(p + id);
@@ -1398,6 +1413,7 @@ function addTransaction() {
     tx={id:Date.now(),type:'transfer',desc:'',amount,date,from:support,to};
     if(fromPocket) tx.fromPocket=fromPocket;
     if(toPocket) tx.toPocket=toPocket;
+    if(document.getElementById('tx-advance').checked) tx.advance='open';
   } else {
     const desc=document.getElementById('tx-desc').value.trim();
     if(txType==='income'&&amount<0){alert('Un montant négatif n\'est possible que pour une dépense.');return;}
@@ -1547,6 +1563,8 @@ function startEditTransaction() {
     t.splits.forEach(x => addSplitLine('edit-', { support: x.support, pocket: x.pocket || '', amount: x.amount }));
   }
   applyTypeUI('edit-', t.type);
+  document.getElementById('edit-tx-advance').checked = !!t.advance;
+  updateAdvanceVisibility('edit-');
   document.getElementById('edit-modal').classList.add('open');
 }
 function closeEditModal() { document.getElementById('edit-modal').classList.remove('open'); }
@@ -1608,6 +1626,7 @@ function saveEditTransaction() {
     nt = { id: old.id, type: 'transfer', desc: '', amount, date, from: support, to };
     if (fromPocket) nt.fromPocket = fromPocket;
     if (toPocket) nt.toPocket = toPocket;
+    if (document.getElementById('edit-tx-advance').checked) nt.advance = old.advance || 'open';
   } else {
     const desc = document.getElementById('edit-tx-desc').value.trim();
     if (editTxType === 'income' && amount < 0) { alert('Un montant négatif n\'est possible que pour une dépense.'); return; }
