@@ -2462,7 +2462,7 @@ function sheetsNum(v, f) {   // cellule numérique (avec formule si fournie) ; l
   return c;
 }
 function sheetsRecapRows(from, to) {
-  const months = sheetsMonths(from, to), n = months.length, F = 5;   // F = index de la 1re colonne de mois (F)
+  const months = sheetsMonths(from, to), n = months.length, F = 4;   // F = index de la 1re colonne de mois (E)
   const lastCol = sheetsCol(F + n - 1);
   const sum = a => round2(a.reduce((s, v) => s + v, 0));
   const zeros = () => new Array(n).fill(0);
@@ -2478,13 +2478,8 @@ function sheetsRecapRows(from, to) {
       tg[cat.id][mi] = round2(tg[cat.id][mi] + x.amount);
     });
   });
-  // Budget mensuel d'une catégorie : celui du dernier mois de la période où il est défini
-  const budgetOf = id => {
-    for (let i = n - 1; i >= 0; i--) { const b = budgets[months[i]] && budgets[months[i]][id]; if (b != null) return b; }
-    return null;
-  };
   const avgCell = (r, vals) => sheetsNum(sum(vals) / n, `SUM(${sheetsCol(F)}${r}:${lastCol}${r})/${n}`);
-  const rows = [['Groupe', 'Catégorie', 'Enveloppe', 'Budget', 'Moyenne mensuelle',
+  const rows = [['Groupe', 'Catégorie', 'Enveloppe', 'Moyenne mensuelle',
     ...months.map(m => { const c = sheetsDateCell(m + '-01'); c.z = 'mmm yy'; return c; })]];
 
   // Une section par groupe de catégories, avec son total
@@ -2496,17 +2491,15 @@ function sheetsRecapRows(from, to) {
     if (!cats.length) return;
     const gName = g === null ? 'Sans groupe' : g, envId = envelopeOfGroup(g), envLabel = (getEnvelopeById(envId) || {}).label || '';
     const start = rows.length + 1, sums = zeros();
-    let bsum = 0;
     cats.forEach(c => {
-      const vals = spent[c.id] || zeros(), b = budgetOf(c.id), r = rows.length + 1;
-      if (b !== null) bsum += b;
-      rows.push([gName, c.label, envLabel, b === null ? '' : sheetsNum(b), avgCell(r, vals), ...vals.map(v => sheetsNum(v))]);
+      const vals = spent[c.id] || zeros(), r = rows.length + 1;
+      rows.push([gName, c.label, envLabel, avgCell(r, vals), ...vals.map(v => sheetsNum(v))]);
       vals.forEach((v, i) => { sums[i] = round2(sums[i] + v); });
     });
     const end = rows.length, r = end + 1;
-    rows.push([gName, 'Total ' + gName, envLabel, sheetsNum(bsum, `SUM(D${start}:D${end})`), avgCell(r, sums),
+    rows.push([gName, 'Total ' + gName, envLabel, avgCell(r, sums),
       ...sums.map((v, i) => sheetsNum(v, `SUM(${sheetsCol(F + i)}${start}:${sheetsCol(F + i)}${end})`))]);
-    groupTotals.push({ row: r, env: envId, sums, bsum });
+    groupTotals.push({ row: r, env: envId, sums });
   });
 
   // Totaux par enveloppe (Courant, Vacances), puis total général
@@ -2516,13 +2509,13 @@ function sheetsRecapRows(from, to) {
     const gs = groupTotals.filter(x => x.env === e.id);
     if (!gs.length) return;
     const r = rows.length + 1, sums = months.map((_, i) => sum(gs.map(x => x.sums[i])));
-    rows.push(['Total', 'Total ' + e.label, e.label, sheetsNum(sum(gs.map(x => x.bsum)), gs.map(x => 'D' + x.row).join('+')), avgCell(r, sums),
+    rows.push(['Total', 'Total ' + e.label, e.label, avgCell(r, sums),
       ...sums.map((v, i) => sheetsNum(v, gs.map(x => sheetsCol(F + i) + x.row).join('+')))]);
-    envTotals.push({ row: r, sums, bsum: sum(gs.map(x => x.bsum)) });
+    envTotals.push({ row: r, sums });
   });
   if (envTotals.length) {
     const r = rows.length + 1, sums = months.map((_, i) => sum(envTotals.map(x => x.sums[i])));
-    rows.push(['TOTAL', 'TOTAL', '', sheetsNum(sum(envTotals.map(x => x.bsum)), envTotals.map(x => 'D' + x.row).join('+')), avgCell(r, sums),
+    rows.push(['TOTAL', 'TOTAL', '', avgCell(r, sums),
       ...sums.map((v, i) => sheetsNum(v, envTotals.map(x => sheetsCol(F + i) + x.row).join('+')))]);
   }
 
@@ -2533,15 +2526,130 @@ function sheetsRecapRows(from, to) {
     const start = rows.length + 1, sums = zeros();
     excCats.forEach(c => {
       const vals = exc[c.id], r = rows.length + 1;
-      rows.push([c.group || '', c.label, 'Exceptionnel', '', avgCell(r, vals), ...vals.map(v => sheetsNum(v))]);
+      rows.push([c.group || '', c.label, 'Exceptionnel', avgCell(r, vals), ...vals.map(v => sheetsNum(v))]);
       vals.forEach((v, i) => { sums[i] = round2(sums[i] + v); });
     });
     const end = rows.length, r = end + 1;
-    rows.push(['Exceptionnel', 'Total Exceptionnel', 'Exceptionnel', '', avgCell(r, sums),
+    rows.push(['Exceptionnel', 'Total Exceptionnel', 'Exceptionnel', avgCell(r, sums),
       ...sums.map((v, i) => sheetsNum(v, `SUM(${sheetsCol(F + i)}${start}:${sheetsCol(F + i)}${end})`))]);
   }
   return rows;
 }
+
+// ----- Bilan de la période -----
+function sheetsBilanRows(from, to) {
+  const n = sheetsMonths(from, to).length;
+  const inP = t => t.date >= from && t.date <= to;
+  const sum = a => round2(a.reduce((s, v) => s + v, 0));
+  const grid = [];
+  const put = (r, c, v) => {   // r, c : positions à partir de 0
+    while (grid.length <= r) grid.push([]);
+    while (grid[r].length < c) grid[r].push('');
+    grid[r][c] = v;
+  };
+  const ref = (r, c) => sheetsCol(c) + (r + 1);
+  const fr = d => d.split('-').reverse().join('/');
+  put(0, 0, 'Bilan du ' + fr(from) + ' au ' + fr(to) + ' (' + n + ' mois)');
+
+  // --- Bloc 1 : REVENUS (par catégorie, puis par support) ---
+  const incCat = {}, incSup = {};
+  transactions.filter(t => t.type === 'income' && inP(t)).forEach(t => {
+    const cat = INCOME_CATS.find(c => c.id === t.cat), key = cat ? cat.label : 'Sans catégorie';
+    txParts(t).forEach(x => {
+      incCat[key] = round2((incCat[key] || 0) + x.amount);
+      incSup[x.support] = round2((incSup[x.support] || 0) + x.amount);
+    });
+  });
+  const listBlock = (r0, c0, titre, entete, entries) => {   // tableau « libellé | total | moyenne » ; renvoie la prochaine ligne libre
+    put(r0, c0, titre);
+    put(r0 + 1, c0, entete); put(r0 + 1, c0 + 1, 'Total'); put(r0 + 1, c0 + 2, 'Moyenne mensuelle');
+    entries.forEach(([k, v], i) => {
+      const r = r0 + 2 + i;
+      put(r, c0, k); put(r, c0 + 1, sheetsNum(v)); put(r, c0 + 2, sheetsNum(v / n, `${ref(r, c0 + 1)}/${n}`));
+    });
+    const r = r0 + 2 + entries.length, tot = sum(entries.map(e => e[1]));
+    put(r, c0, 'TOTAL');
+    put(r, c0 + 1, sheetsNum(tot, entries.length ? `SUM(${ref(r0 + 2, c0 + 1)}:${ref(r - 1, c0 + 1)})` : null));
+    put(r, c0 + 2, sheetsNum(tot / n, `${ref(r, c0 + 1)}/${n}`));
+    return r + 1;
+  };
+  const catKeys = [...INCOME_CATS.map(c => c.label), 'Sans catégorie'].filter((k, i, a) => incCat[k] !== undefined && a.indexOf(k) === i);
+  const nextRow = listBlock(2, 0, 'REVENUS', 'Catégorie', catKeys.map(k => [k, incCat[k]]));
+  listBlock(nextRow + 1, 0, 'REVENUS PAR SUPPORT', 'Support', SUPPORTS.filter(s => incSup[s.id] !== undefined).map(s => [s.label, incSup[s.id]]));
+
+  // --- Bloc 2 : DÉPENSES (supports en lignes, enveloppes en colonnes) ---
+  const dep = {};
+  transactions.filter(t => t.type === 'expense' && inP(t)).forEach(t => txParts(t).forEach(x => {
+    const e = envelopeOfPart(t, x);
+    dep[x.support] = dep[x.support] || {};
+    dep[x.support][e] = round2((dep[x.support][e] || 0) + x.amount);
+  }));
+  const k = ENVELOPES.length, c1 = 4, cTot = c1 + 1 + k, cAvg = cTot + 1;
+  put(2, c1, 'DÉPENSES');
+  put(3, c1, 'Support');
+  ENVELOPES.forEach((e, i) => put(3, c1 + 1 + i, e.label));
+  put(3, cTot, 'Total'); put(3, cAvg, 'Moyenne mensuelle');
+  const depSup = SUPPORTS.filter(s => dep[s.id]);
+  depSup.forEach((s, i) => {
+    const r = 4 + i;
+    put(r, c1, s.label);
+    ENVELOPES.forEach((e, j) => put(r, c1 + 1 + j, sheetsNum(dep[s.id][e.id] || 0)));
+    const tot = sum(ENVELOPES.map(e => dep[s.id][e.id] || 0));
+    put(r, cTot, sheetsNum(tot, `SUM(${ref(r, c1 + 1)}:${ref(r, c1 + k)})`));
+    put(r, cAvg, sheetsNum(tot / n, `${ref(r, cTot)}/${n}`));
+  });
+  const rt = 4 + depSup.length;
+  put(rt, c1, 'TOTAL');
+  for (let j = 0; j <= k; j++) {
+    const col = c1 + 1 + j, v = sum(depSup.map(s => j < k ? (dep[s.id][ENVELOPES[j].id] || 0) : sum(ENVELOPES.map(e => dep[s.id][e.id] || 0))));
+    put(rt, col, sheetsNum(v, depSup.length ? `SUM(${ref(4, col)}:${ref(rt - 1, col)})` : null));
+  }
+  put(rt, cAvg, sheetsNum(sum(depSup.map(s => sum(ENVELOPES.map(e => dep[s.id][e.id] || 0)))) / n, `${ref(rt, cTot)}/${n}`));
+
+  // --- Bloc 3 : ÉPARGNE (une ligne par livret ou poche) ---
+  const buckets = [];
+  SUPPORTS.filter(s => s.savings).forEach(s => {
+    const pk = pocketsOf(s);
+    if (pk.length) {
+      pk.forEach(p => buckets.push({ sup: s, pocket: p.id, label: p.label.startsWith(s.label) ? p.label : s.label + ' – ' + p.label }));
+      buckets.push({ sup: s, pocket: null, label: s.label + ' – (sans poche)', optional: true });
+    } else buckets.push({ sup: s, pocket: null, label: s.label });
+  });
+  const initOf = b => b.pocket
+    ? (Number((getPocket(b.sup, b.pocket) || {}).initial) || 0)
+    : (Number(b.sup.initial) || 0) - pocketsOf(b.sup).reduce((s, p) => s + (Number(p.initial) || 0), 0);
+  const flows = (b, test) => {
+    const r = { tr: 0, inc: 0, exp: 0 };
+    transactions.forEach(t => {
+      if (!test(t.date)) return;
+      if (t.type === 'transfer') {
+        if (t.from === b.sup.id && (t.fromPocket || null) === b.pocket) r.tr -= t.amount;
+        if (t.to === b.sup.id && (t.toPocket || null) === b.pocket) r.tr += t.amount;
+      } else txParts(t).forEach(x => {
+        if (x.support === b.sup.id && (x.pocket || null) === b.pocket) r[t.type === 'income' ? 'inc' : 'exp'] += x.amount;
+      });
+    });
+    return r;
+  };
+  const rowsE = buckets.map(b => {
+    const before = flows(b, d => d < from), per = flows(b, d => d >= from && d <= to);
+    return { label: b.label, optional: b.optional, debut: round2(initOf(b) + before.tr + before.inc - before.exp), tr: round2(per.tr), inc: round2(per.inc), exp: round2(per.exp) };
+  }).filter(x => !x.optional || x.debut || x.tr || x.inc || x.exp);
+  const c2 = cAvg + 2;
+  put(2, c2, 'ÉPARGNE');
+  ['Livret / poche', 'Début de période', 'Versements nets', 'Recettes', 'Dépenses exceptionnelles', 'Fin de période'].forEach((h, i) => put(3, c2 + i, h));
+  rowsE.forEach((x, i) => {
+    const r = 4 + i;
+    put(r, c2, x.label); put(r, c2 + 1, sheetsNum(x.debut)); put(r, c2 + 2, sheetsNum(x.tr)); put(r, c2 + 3, sheetsNum(x.inc)); put(r, c2 + 4, sheetsNum(x.exp));
+    put(r, c2 + 5, sheetsNum(x.debut + x.tr + x.inc - x.exp, `${ref(r, c2 + 1)}+${ref(r, c2 + 2)}+${ref(r, c2 + 3)}-${ref(r, c2 + 4)}`));
+  });
+  const re = 4 + rowsE.length;
+  put(re, c2, 'TOTAL');
+  ['debut', 'tr', 'inc', 'exp'].forEach((key, i) => put(re, c2 + 1 + i, sheetsNum(sum(rowsE.map(x => x[key])), rowsE.length ? `SUM(${ref(4, c2 + 1 + i)}:${ref(re - 1, c2 + 1 + i)})` : null)));
+  put(re, c2 + 5, sheetsNum(sum(rowsE.map(x => x.debut + x.tr + x.inc - x.exp)), rowsE.length ? `SUM(${ref(4, c2 + 5)}:${ref(re - 1, c2 + 5)})` : null));
+  return grid;
+}
+  
 function addSheet(wb, name, rows, widths) {
   const ws = XLSX.utils.aoa_to_sheet(rows);
   if (widths) ws['!cols'] = widths.map(w => ({ wch: w }));
@@ -2552,7 +2660,8 @@ function exportSheets() {
   const from = document.getElementById('sheets-from').value, to = document.getElementById('sheets-to').value;
   if (!from || !to || from > to) { alert('Période invalide.'); return; }
   const wb = XLSX.utils.book_new();
-  addSheet(wb, 'Récap dépenses', sheetsRecapRows(from, to), [14, 32, 12, 10, 12].concat(new Array(24).fill(10)));
+  addSheet(wb, 'Bilan', sheetsBilanRows(from, to), [30, 12, 14, 3, 18, 11, 11, 13, 11, 14, 3, 30, 14, 14, 11, 14, 14]);
+  addSheet(wb, 'Récap dépenses', sheetsRecapRows(from, to), [14, 32, 12, 12].concat(new Array(24).fill(10)));
   addSheet(wb, 'Transactions', sheetsTransactionsRows(from, to), [11, 9, 11, 28, 14, 30, 13, 18, 18, 18, 18, 11, 13]);
   const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   const file = new File([data], 'budget-' + from + '_' + to + '.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
