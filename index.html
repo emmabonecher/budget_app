@@ -259,6 +259,20 @@ body { background: #f0f0f0; }
 .analyse-head .cat-row-icon { width: 40px; height: 40px; border-radius: 10px; }
 .analyse-title { font-size: 16px; font-weight: 500; color: var(--color-text-primary); }
 .analyse-sub { font-size: 12px; color: var(--color-text-secondary); }
+/* ===== Synthèse mensuelle ===== */
+.syn-block { background: var(--color-background-secondary); border-radius: var(--border-radius-lg); padding: 14px; margin-bottom: 10px; }
+.syn-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.syn-label { font-size: 12px; font-weight: 600; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+.syn-dest { font-size: 12px; color: var(--color-text-tertiary); }
+.syn-amount { font-size: 24px; font-weight: 500; margin-top: 6px; }
+.syn-amount.pos { color: var(--color-text-success); }
+.syn-amount.neg { color: var(--color-text-danger); }
+.syn-amount.zero { color: var(--color-text-tertiary); }
+.syn-formula { font-size: 12px; color: var(--color-text-secondary); margin-top: 6px; line-height: 1.5; }
+.syn-control { border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 10px 14px; margin: 14px 0; font-size: 13px; color: var(--color-text-secondary); }
+.syn-control div { display: flex; justify-content: space-between; gap: 10px; padding: 2px 0; }
+.syn-control .ok { color: var(--color-text-success); font-weight: 500; }
+.syn-control .ko { color: var(--color-text-danger); font-weight: 500; }
 </style>
 </head>
 <body>
@@ -279,6 +293,7 @@ body { background: #f0f0f0; }
     <button class="nav-btn active" onclick="showPage('main')" id="nav-main"><i class="ti ti-home"></i>Accueil</button>
     <button class="nav-btn" onclick="showPage('dashboard')" id="nav-dashboard"><i class="ti ti-layout-dashboard"></i>Soldes</button>
     <button class="nav-btn" onclick="showPage('budget')" id="nav-budget"><i class="ti ti-chart-bar"></i>Budget</button>
+    <button class="nav-btn" onclick="showPage('synthese')" id="nav-synthese"><i class="ti ti-arrows-exchange"></i>Synthèse</button>
   </div>
 
   <div class="page active" id="page-main">
@@ -320,6 +335,9 @@ body { background: #f0f0f0; }
   </div>
   <div class="page" id="page-dashboard">
     <div id="dashboard-content" style="padding-bottom:72px"></div>
+  </div>
+    <div class="page" id="page-synthese">
+    <div id="synthese-content" style="padding-bottom:24px"></div>
   </div>
   <div class="page" id="page-settings">
   <div class="settings-top">
@@ -856,7 +874,147 @@ function envelopeBudget(envId) {
   });
   return any ? total : null;
 }
+// ===== SYNTHÈSE MENSUELLE : virements de fin de mois =====
+function normLabel(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase(); }
+// Le compte = le support « Compte bancaire » ; à défaut, le premier support qui n'est pas un livret
+function compteSupport() {
+  return getSupportById('sup-card') || SUPPORTS.find(sp => !sp.savings) || SUPPORTS[0];
+}
+// Destination du virement « Livret A » : support « Livret A », poche « Économies »
+function savingsTarget() {
+  const sp = SUPPORTS.find(x => normLabel(x.label) === 'livret a');
+  if (!sp) return null;
+  const pk = pocketsOf(sp).find(e => normLabel(e.label) === 'economies');
+  return { support: sp.id, ...(pk ? { pocket: pk.id } : {}) };
+}
+function isTarget(tg, supId, pocketId) {
+  if (!tg || supId !== tg.support) return false;
+  return tg.pocket ? (pocketId || '') === tg.pocket : true;
+}
+// Calcule les trois virements pour une liste de transactions (celles du mois affiché)
+function computeSynthese(txs) {
+  const cid = compteSupport().id;
+  const isSavings = id => { const sp = getSupportById(id); return !!(sp && sp.savings); };
+  const tgC = ENV_TARGETS.courant || null, tgV = ENV_TARGETS.vacances || null;
+  const spent = { courant: 0, vacances: 0 };
+  const done = { courant: 0, vacances: 0, livret: 0 };
+  let H = 0, R = 0, T = 0, compteDelta = 0, advFlow = 0;
 
+  txs.forEach(t => {
+    if (t.type === 'transfer') {
+      const out = t.from === cid, inn = t.to === cid;
+      if (out) compteDelta -= t.amount;
+      if (inn) compteDelta += t.amount;
+      if (t.advance) {                       // avances : à part, hors des trois calculs
+        if (out) advFlow -= t.amount;
+        if (inn) advFlow += t.amount;
+        return;
+      }
+      if (out === inn) return;               // ne touche pas le compte
+      const other = out ? t.to : t.from, otherPocket = out ? t.toPocket : t.fromPocket;
+      const sign = out ? 1 : -1;             // sortie du compte = +, entrée = −
+      if (!isSavings(other)) { T += sign * t.amount; return; }   // retrait d'espèces, etc.
+      const k = isTarget(tgC, other, otherPocket) ? 'courant'
+              : isTarget(tgV, other, otherPocket) ? 'vacances' : 'livret';
+      done[k] += sign * t.amount;            // déjà viré (ou repris) vers un livret
+      return;
+    }
+    if (t.type === 'income') {
+      txParts(t).forEach(x => { if (x.support === cid) { R += x.amount; compteDelta += x.amount; } });
+      return;
+    }
+    txParts(t).forEach(x => {                // dépense
+      if (x.support === cid) compteDelta -= x.amount;
+      const env = envelopeOfPart(t, x);
+      if (env === 'exceptionnel') return;    // payée depuis un livret : hors Courant et Vacances
+      spent[env] += x.amount;
+      if (x.support !== cid) H += x.amount;  // dépense faite hors compte
+    });
+  });
+
+  const bC = envelopeBudget('courant') || 0, bV = envelopeBudget('vacances') || 0;
+  const theo = {
+    courant:  round2(bC - spent.courant),
+    vacances: round2(bV - spent.vacances),
+    livret:   round2(R + H - T - bC - bV)
+  };
+  const rest = {
+    courant:  round2(theo.courant - done.courant),
+    vacances: round2(theo.vacances - done.vacances),
+    livret:   round2(theo.livret - done.livret)
+  };
+  const sumRest = round2(rest.courant + rest.vacances + rest.livret);
+  return {
+    theo, rest, sumRest,
+    done: { courant: round2(done.courant), vacances: round2(done.vacances), livret: round2(done.livret) },
+    compteDelta: round2(compteDelta), advFlow: round2(advFlow),
+    gap: round2(compteDelta - sumRest - advFlow),
+    bC, bV, spentC: round2(spent.courant), spentV: round2(spent.vacances),
+    H: round2(H), R: round2(R), T: round2(T)
+  };
+}
+
+function renderSynthese() {
+  const el = document.getElementById('synthese-content');
+  if (!el) return;
+  const s = computeSynthese(getMonthTx());
+  const cmp = compteSupport();
+  const sgn = n => (n > 0 ? '+' : n < 0 ? '−' : '') + fmt(Math.abs(n));
+  const destOf = tg => {
+    const sp = tg ? getSupportById(tg.support) : null;
+    if (!sp) return '';
+    const pk = tg.pocket ? getPocket(sp, tg.pocket) : null;
+    return sp.label + (pk ? ' · ' + pk.label : '');
+  };
+  const lines = {
+    courant:  `Budget ${fmtAuto(s.bC)} − dépensé ${fmtAuto(s.spentC)}`,
+    vacances: `Budget ${fmtAuto(s.bV)} − dépensé ${fmtAuto(s.spentV)}`,
+    livret:   `Recettes du compte ${fmtAuto(s.R)} + dépenses hors compte ${fmtAuto(s.H)} − transferts hors livrets ${fmtAuto(s.T)} − budget total ${fmtAuto(round2(s.bC + s.bV))}`
+  };
+  const blocks = [
+    { key: 'courant',  label: 'Courant',  tg: ENV_TARGETS.courant },
+    { key: 'vacances', label: 'Vacances', tg: ENV_TARGETS.vacances },
+    { key: 'livret',   label: 'Livret A', tg: savingsTarget() }
+  ].map(b => {
+    const v = s.rest[b.key];
+    const cls = v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
+    const txt = v > 0 ? 'à virer' : v < 0 ? 'à reprendre' : 'à jour';
+    const dest = destOf(b.tg);
+    const route = !dest ? 'Destination non définie' : (v < 0 ? dest + ' → ' + cmp.label : cmp.label + ' → ' + dest);
+    return `<div class="syn-block">
+      <div class="syn-head"><span class="syn-label">${esc(b.label)}</span><span class="syn-dest">${esc(route)}</span></div>
+      <div class="syn-amount ${cls}">${fmt(Math.abs(v))} <span style="font-size:13px;font-weight:400">${txt}</span></div>
+      <div class="syn-formula">${esc(lines[b.key])}<br>Théorique ${fmt(s.theo[b.key])} · déjà viré ${fmt(s.done[b.key])}</div>
+    </div>`;
+  }).join('');
+
+  const control = `<div class="syn-control">
+    <div><span>Total des trois virements</span><span>${sgn(s.sumRest)}</span></div>
+    ${s.advFlow !== 0 ? `<div><span>Avances (boîte ci-dessous)</span><span>${sgn(s.advFlow)}</span></div>` : ''}
+    <div><span>Variation du compte ce mois-ci</span><span>${sgn(s.compteDelta)}</span></div>
+    <div><span>Écart</span><span class="${Math.abs(s.gap) < 0.005 ? 'ok' : 'ko'}">${Math.abs(s.gap) < 0.005 ? '0,00 € ✓' : sgn(s.gap)}</span></div>
+  </div>`;
+
+  // Boîte « Avances en cours » : tous mois confondus, séparée des calculs ci-dessus
+  const adv = transactions.filter(t => t.type === 'transfer' && (t.advance === 'open' || t.advance === 'partial'))
+    .sort((a, b) => b.date !== a.date ? b.date.localeCompare(a.date) : b.id - a.id);
+  const advTotal = round2(adv.reduce((sum, t) => sum + t.amount, 0));
+  const lbl = id => (getSupportById(id) || {}).label || '';
+  const advRows = adv.map(t => `<div class="bgt-row" onclick="openEditFromList(${t.id})">
+      <div class="bgt-row-label"><span class="adv-dot ${t.advance}" style="flex-shrink:0"></span><span>${t.date.split('-').reverse().join('/')} · ${esc(lbl(t.from))} → ${esc(lbl(t.to))}</span></div>
+      <div class="bgt-row-right"><div class="bgt-row-amt">${fmt(t.amount)}</div></div></div>`).join('');
+  const advBox = `<div class="bgt-group">
+    <div class="bgt-group-head"><span class="bgt-group-name">Avances en cours</span><span class="bgt-group-amt"><strong>${adv.length ? fmt(advTotal) : '–'}</strong></span></div>
+    ${adv.length ? advRows : '<div class="bgt-row" style="cursor:default"><span class="bgt-rest muted">Aucune avance en cours</span></div>'}
+  </div>`;
+
+  el.innerHTML = `<div class="month-nav">
+      <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
+      <span class="month-label">${MONTHS[viewMonth]} ${viewYear}</span>
+      <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
+    </div>
+    ${blocks}${control}${advBox}`;
+}
 function esc(v) {
   return String(v == null ? '' : v).replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
 }
@@ -1115,6 +1273,7 @@ function updateDisplays() {
   renderList(document.getElementById('all-list'), sorted, true);
   renderBudgetPage(txs);
   renderDashboard();
+  renderSynthese();
   renderAnalyse();
   renderSupportDetail();
 }
@@ -1305,11 +1464,12 @@ function showPage(name, fromPop) {
   if (navBtn) navBtn.classList.add('active');
   const isSub = name === 'settings' || name === 'analyse' || name === 'support';
   document.querySelector('.nav').style.display = isSub ? 'none' : '';
-  document.querySelector('.fab').style.display = (name === 'budget' || isSub) ? 'none' : 'flex';
+  document.querySelector('.fab').style.display = (name === 'budget' || name === 'synthese' || isSub) ? 'none' : 'flex';
   if (name === 'settings') renderSettings();
   if (name === 'analyse') renderAnalyse();
   if (name === 'support') renderSupportDetail();
   if (name === 'dashboard') renderDashboard();
+  if (name === 'synthese') renderSynthese();
   if (isSub) window.scrollTo(0, 0);
 
   // Historique : les onglets (Accueil/Budget) remplacent l'entrée, les sous-pages en ajoutent une
@@ -2446,7 +2606,7 @@ function renderAnalyse() {
 
   // ===== Bouton retour du téléphone =====
 let currentPage = 'main';
-const TAB_PAGES = ['main', 'dashboard', 'budget'];
+const TAB_PAGES = ['main', 'dashboard', 'budget', 'synthese'];
 const OVERLAYS = ['modal', 'budget-modal', 'cat-picker', 'edit-modal', 'cat-edit-modal', 'support-edit-modal'];
 let overlayStack = [];   // fenêtres ouvertes, dans l'ordre d'ouverture
 let popClosing = false;  // fermeture déclenchée par le bouton retour
