@@ -172,6 +172,10 @@ body { background: #f0f0f0; }
 .tx-action-btn i { font-size: 20px; width: 24px; }
 .select-bar { display: none; background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 8px 12px; margin-bottom: 10px; align-items: center; justify-content: space-between; }
 .select-bar.visible { display: flex; }
+.adv-dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-left:6px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 4px transparent}
+.adv-dot.open{background:#E24B4A}
+.adv-dot.partial{background:#F29D38}
+.adv-dot.done{background:#3FA55B}
 /* Merged main page layout */
 .summary-sticky { background: var(--color-background-primary); padding: 16px 16px 12px; position: sticky; top: 97px; z-index: 7; transition: transform 0.25s ease, opacity 0.25s ease; }
 .summary-sticky.hidden { transform: translateY(-20px); opacity: 0; pointer-events: none; }
@@ -414,7 +418,7 @@ body { background: #f0f0f0; }
       <select id="tx-pocket-to"></select>
     </div>
     <div class="form-group" id="grp-advance" style="display:none">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="tx-advance" style="width:auto;margin:0" /> Avance (à rembourser au livret)</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="tx-advance" style="width:auto;margin:0" /> Avance</label>
     </div>
     <div class="form-group">
       <label>Date</label>
@@ -1143,6 +1147,13 @@ function supportBadge(id, pocketId) {
 function slotMatches(ctx, supId, pocketId) {
   return supId === ctx.support && (ctx.pocket === undefined || (pocketId || null) === ctx.pocket);
 }
+function cycleAdvance(id) {
+  const t = transactions.find(x => x.id === id);
+  if (!t || !t.advance) return;
+  t.advance = t.advance === 'open' ? 'partial' : t.advance === 'partial' ? 'done' : 'open';
+  save();
+  updateDisplays();
+}
 function renderList(el, txs, withActions, ctx) {
   if (!txs.length) { el.innerHTML='<div class="empty-state"><i class="ti ti-receipt" style="font-size:32px;display:block;margin-bottom:8px"></i>Aucune transaction</div>'; return; }
   el.innerHTML = txs.map(t => {
@@ -1153,6 +1164,7 @@ function renderList(el, txs, withActions, ctx) {
     if (t.type==='transfer') {
       icon='ti-arrows-exchange'; bg='#E6F1FB'; catLabel=''; name='Transfert';
       badges=supportBadge(t.from, t.fromPocket)+' <i class="ti ti-arrow-right" style="font-size:11px"></i> '+supportBadge(t.to, t.toPocket);
+      if (t.advance) badges += `<span class="adv-dot ${t.advance}" title="Avance" onclick="event.stopPropagation(); cycleAdvance(${t.id})"></span>`;
       const out = ctx && slotMatches(ctx, t.from, t.fromPocket), inn = ctx && slotMatches(ctx, t.to, t.toPocket);
       if (out && !inn) amountHtml=`<div class="tx-amount neg">-${fmt(t.amount)}</div>`;
       else if (inn && !out) amountHtml=`<div class="tx-amount pos">+${fmt(t.amount)}</div>`;
