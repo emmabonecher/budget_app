@@ -994,11 +994,14 @@ function renderSynthese() {
     const pk = tg.pocket ? getPocket(sp, tg.pocket) : null;
     return sp.label + (pk ? ' · ' + pk.label : '');
   };
-  const lines = {
-    courant:  `Budget ${fmtAuto(s.bC)} − dépensé ${fmtAuto(s.spentC)}`,
-    vacances: `Budget ${fmtAuto(s.bV)} − dépensé ${fmtAuto(s.spentV)}`,
-    livret:   `Recettes du compte ${fmtAuto(s.R)} + dépenses hors compte ${fmtAuto(s.H)} − transferts hors livrets ${fmtAuto(s.T)} − budget total ${fmtAuto(round2(s.bC + s.bV))}`
-  };
+    const signed = n => (n < 0 ? '−' : '+') + ' ' + fmt(Math.abs(n));
+  const livretDetail = [
+    ['Recettes du compte', s.R],
+    ['Dépenses hors compte', s.H],
+    ['Transferts hors livrets', -s.T],
+    ['Budget total', -round2(s.bC + s.bV)],
+    ...(s.done.livret !== 0 ? [['Déjà viré', -s.done.livret]] : [])
+  ].map(([n, a]) => `<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--color-text-secondary);padding:3px 0"><span>${n}</span><span>${signed(a)}</span></div>`).join('');
   const blocks = [
     { key: 'courant',  label: 'Courant',  tg: ENV_TARGETS.courant },
     { key: 'vacances', label: 'Vacances', tg: ENV_TARGETS.vacances },
@@ -1009,11 +1012,12 @@ function renderSynthese() {
     const txt = v > 0 ? 'à virer' : v < 0 ? 'à reprendre' : 'à jour';
     const dest = destOf(b.tg);
     const route = !dest ? 'Destination non définie' : (v < 0 ? dest + ' → ' + cmp.label : cmp.label + ' → ' + dest);
-    const open = syntheseOpen.has(b.key);
-    return `<div class="syn-block" style="cursor:pointer" onclick="toggleSyntheseBlock('${b.key}')">
-      <div class="syn-head"><span class="syn-label">${esc(b.label)} <i class="ti ti-chevron-${open ? 'up' : 'down'}" style="font-size:12px"></i></span><span class="syn-dest">${esc(route)}</span></div>
+    const expandable = b.key === 'livret';
+    const open = expandable && syntheseOpen.has('livret');
+    return `<div class="syn-block"${expandable ? ` style="cursor:pointer" onclick="toggleSyntheseBlock('livret')"` : ''}>
+      <div class="syn-head"><span class="syn-label">${esc(b.label)}${expandable ? ` <i class="ti ti-chevron-${open ? 'up' : 'down'}" style="font-size:12px"></i>` : ''}</span><span class="syn-dest">${esc(route)}</span></div>
       <div class="syn-amount ${cls}">${fmt(Math.abs(v))} <span style="font-size:13px;font-weight:400">${txt}</span></div>
-      ${open ? `<div class="syn-formula">${esc(lines[b.key])}<br>Théorique ${fmt(s.theo[b.key])} · déjà viré ${fmt(s.done[b.key])}</div>` : ''}
+      ${open ? `<div style="margin-top:8px">${livretDetail}</div>` : ''}
       ${(v !== 0 && dest) ? `<button class="btn-primary" style="margin-top:10px;padding:10px" onclick="event.stopPropagation();openSyntheseTransfer('${b.key}')">${v < 0 ? 'Reprendre le virement' : 'Faire le virement'}</button>` : ''}
     </div>`;
   }).join('');
