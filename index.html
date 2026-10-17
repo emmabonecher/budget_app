@@ -2440,6 +2440,108 @@ function sheetsTransactionsRows(from, to) {
     });
   return rows;
 }
+// ----- Récap dépenses -----
+function sheetsMonths(from, to) {   // liste des mois « AAAA-MM » de la période
+  const out = [];
+  let y = +from.slice(0, 4), m = +from.slice(5, 7);
+  const ey = +to.slice(0, 4), em = +to.slice(5, 7);
+  while ((y < ey || (y === ey && m <= em)) && out.length < 60) {
+    out.push(y + '-' + String(m).padStart(2, '0'));
+    if (++m > 12) { m = 1; y++; }
+  }
+  return out;
+}
+function sheetsCol(i) {   // 0 → A, 1 → B, 26 → AA
+  let s = '';
+  for (i++; i > 0; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + (i - 1) % 26) + s;
+  return s;
+}
+function sheetsNum(v, f) {   // cellule numérique (avec formule si fournie) ; les zéros restent vides à l'écran
+  const c = { t: 'n', v: round2(v), z: '#,##0.00;-#,##0.00;' };
+  if (f) c.f = f;
+  return c;
+}
+function sheetsRecapRows(from, to) {
+  const months = sheetsMonths(from, to), n = months.length, F = 5;   // F = index de la 1re colonne de mois (F)
+  const lastCol = sheetsCol(F + n - 1);
+  const sum = a => round2(a.reduce((s, v) => s + v, 0));
+  const zeros = () => new Array(n).fill(0);
+  // Dépensé par catégorie et par mois : budget d'un côté, exceptionnel (payé depuis un livret) de l'autre
+  const spent = {}, exc = {};
+  transactions.forEach(t => {
+    if (t.type !== 'expense' || t.date < from || t.date > to) return;
+    const cat = EXPENSE_CATS.find(c => c.id === t.cat), mi = months.indexOf(t.date.slice(0, 7));
+    if (!cat || mi < 0) return;
+    txParts(t).forEach(x => {
+      const tg = envelopeOfPart(t, x) === 'exceptionnel' ? exc : spent;
+      if (!tg[cat.id]) tg[cat.id] = zeros();
+      tg[cat.id][mi] = round2(tg[cat.id][mi] + x.amount);
+    });
+  });
+  // Budget mensuel d'une catégorie : celui du dernier mois de la période où il est défini
+  const budgetOf = id => {
+    for (let i = n - 1; i >= 0; i--) { const b = budgets[months[i]] && budgets[months[i]][id]; if (b != null) return b; }
+    return null;
+  };
+  const avgCell = (r, vals) => sheetsNum(sum(vals) / n, `SUM(${sheetsCol(F)}${r}:${lastCol}${r})/${n}`);
+  const rows = [['Groupe', 'Catégorie', 'Enveloppe', 'Budget', 'Moyenne mensuelle',
+    ...months.map(m => { const c = sheetsDateCell(m + '-01'); c.z = 'mmm yy'; return c; })]];
+
+  // Une section par groupe de catégories, avec son total
+  const groupList = [...GROUPS];
+  if (EXPENSE_CATS.some(c => !GROUPS.includes(c.group))) groupList.push(null);
+  const groupTotals = [];
+  groupList.forEach(g => {
+    const cats = EXPENSE_CATS.filter(c => g === null ? !GROUPS.includes(c.group) : c.group === g);
+    if (!cats.length) return;
+    const gName = g === null ? 'Sans groupe' : g, envId = envelopeOfGroup(g), envLabel = (getEnvelopeById(envId) || {}).label || '';
+    const start = rows.length + 1, sums = zeros();
+    let bsum = 0;
+    cats.forEach(c => {
+      const vals = spent[c.id] || zeros(), b = budgetOf(c.id), r = rows.length + 1;
+      if (b !== null) bsum += b;
+      rows.push([gName, c.label, envLabel, b === null ? '' : sheetsNum(b), avgCell(r, vals), ...vals.map(v => sheetsNum(v))]);
+      vals.forEach((v, i) => { sums[i] = round2(sums[i] + v); });
+    });
+    const end = rows.length, r = end + 1;
+    rows.push([gName, 'Total ' + gName, envLabel, sheetsNum(bsum, `SUM(D${start}:D${end})`), avgCell(r, sums),
+      ...sums.map((v, i) => sheetsNum(v, `SUM(${sheetsCol(F + i)}${start}:${sheetsCol(F + i)}${end})`))]);
+    groupTotals.push({ row: r, env: envId, sums, bsum });
+  });
+
+  // Totaux par enveloppe (Courant, Vacances), puis total général
+  rows.push([]);
+  const envTotals = [];
+  budgetEnvelopes().forEach(e => {
+    const gs = groupTotals.filter(x => x.env === e.id);
+    if (!gs.length) return;
+    const r = rows.length + 1, sums = months.map((_, i) => sum(gs.map(x => x.sums[i])));
+    rows.push(['Total', 'Total ' + e.label, e.label, sheetsNum(sum(gs.map(x => x.bsum)), gs.map(x => 'D' + x.row).join('+')), avgCell(r, sums),
+      ...sums.map((v, i) => sheetsNum(v, gs.map(x => sheetsCol(F + i) + x.row).join('+')))]);
+    envTotals.push({ row: r, sums, bsum: sum(gs.map(x => x.bsum)) });
+  });
+  if (envTotals.length) {
+    const r = rows.length + 1, sums = months.map((_, i) => sum(envTotals.map(x => x.sums[i])));
+    rows.push(['TOTAL', 'TOTAL', '', sheetsNum(sum(envTotals.map(x => x.bsum)), envTotals.map(x => 'D' + x.row).join('+')), avgCell(r, sums),
+      ...sums.map((v, i) => sheetsNum(v, envTotals.map(x => sheetsCol(F + i) + x.row).join('+')))]);
+  }
+
+  // Exceptionnel : payé depuis un livret, hors budget, mais avec sa catégorie
+  const excCats = EXPENSE_CATS.filter(c => exc[c.id]);
+  if (excCats.length) {
+    rows.push([]);
+    const start = rows.length + 1, sums = zeros();
+    excCats.forEach(c => {
+      const vals = exc[c.id], r = rows.length + 1;
+      rows.push([c.group || '', c.label, 'Exceptionnel', '', avgCell(r, vals), ...vals.map(v => sheetsNum(v))]);
+      vals.forEach((v, i) => { sums[i] = round2(sums[i] + v); });
+    });
+    const end = rows.length, r = end + 1;
+    rows.push(['Exceptionnel', 'Total Exceptionnel', 'Exceptionnel', '', avgCell(r, sums),
+      ...sums.map((v, i) => sheetsNum(v, `SUM(${sheetsCol(F + i)}${start}:${sheetsCol(F + i)}${end})`))]);
+  }
+  return rows;
+}
 function addSheet(wb, name, rows, widths) {
   const ws = XLSX.utils.aoa_to_sheet(rows);
   if (widths) ws['!cols'] = widths.map(w => ({ wch: w }));
@@ -2450,6 +2552,7 @@ function exportSheets() {
   const from = document.getElementById('sheets-from').value, to = document.getElementById('sheets-to').value;
   if (!from || !to || from > to) { alert('Période invalide.'); return; }
   const wb = XLSX.utils.book_new();
+  addSheet(wb, 'Récap dépenses', sheetsRecapRows(from, to), [14, 32, 12, 10, 12].concat(new Array(24).fill(10)));
   addSheet(wb, 'Transactions', sheetsTransactionsRows(from, to), [11, 9, 11, 28, 14, 30, 13, 18, 18, 18, 18, 11, 13]);
   const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   const file = new File([data], 'budget-' + from + '_' + to + '.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
