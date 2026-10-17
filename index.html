@@ -953,7 +953,32 @@ function computeSynthese(txs) {
     H: round2(H), R: round2(R), T: round2(T)
   };
 }
-
+  
+// Date proposée : aujourd'hui pour le mois en cours, dernier jour du mois sinon
+function syntheseDate() {
+  const last = new Date(viewYear, viewMonth + 1, 0);
+  const lastStr = last.getFullYear() + '-' + String(last.getMonth() + 1).padStart(2, '0') + '-' + String(last.getDate()).padStart(2, '0');
+  return todayStr().slice(0, 7) === monthKey(viewYear, viewMonth) ? todayStr() : lastStr;
+}
+// Ouvre la fenêtre « Nouvelle transaction » avec le transfert prérempli ; il reste à valider
+function openSyntheseTransfer(key) {
+  const cmp = compteSupport();
+  const tg = key === 'livret' ? savingsTarget() : ENV_TARGETS[key];
+  const v = computeSynthese(getMonthTx()).rest[key];
+  if (!tg || !getSupportById(tg.support) || v === 0) return;
+  const back = v < 0;   // montant négatif : transfert dans l'autre sens (livret → compte)
+  const fromSup = back ? tg.support : cmp.id, toSup = back ? cmp.id : tg.support;
+  openModal();
+  setType('transfer');
+  fillSupportSelect('tx-support', fromSup);
+  fillSupportSelect('tx-support-to', toSup);
+  fillPocketSelect('tx-pocket', fromSup, back ? (tg.pocket || null) : null);
+  fillPocketSelect('tx-pocket-to', toSup, back ? null : (tg.pocket || null));
+  updatePocketVisibility('');
+  document.getElementById('tx-amount').value = String(Math.abs(v)).replace('.', ',');
+  document.getElementById('tx-date').value = syntheseDate();
+}
+  
 function renderSynthese() {
   const el = document.getElementById('synthese-content');
   if (!el) return;
@@ -965,11 +990,6 @@ function renderSynthese() {
     if (!sp) return '';
     const pk = tg.pocket ? getPocket(sp, tg.pocket) : null;
     return sp.label + (pk ? ' · ' + pk.label : '');
-  };
-  const lines = {
-    courant:  `Budget ${fmtAuto(s.bC)} − dépensé ${fmtAuto(s.spentC)}`,
-    vacances: `Budget ${fmtAuto(s.bV)} − dépensé ${fmtAuto(s.spentV)}`,
-    livret:   `Recettes du compte ${fmtAuto(s.R)} + dépenses hors compte ${fmtAuto(s.H)} − transferts hors livrets ${fmtAuto(s.T)} − budget total ${fmtAuto(round2(s.bC + s.bV))}`
   };
   const blocks = [
     { key: 'courant',  label: 'Courant',  tg: ENV_TARGETS.courant },
@@ -984,14 +1004,11 @@ function renderSynthese() {
     return `<div class="syn-block">
       <div class="syn-head"><span class="syn-label">${esc(b.label)}</span><span class="syn-dest">${esc(route)}</span></div>
       <div class="syn-amount ${cls}">${fmt(Math.abs(v))} <span style="font-size:13px;font-weight:400">${txt}</span></div>
-      <div class="syn-formula">${esc(lines[b.key])}<br>Théorique ${fmt(s.theo[b.key])} · déjà viré ${fmt(s.done[b.key])}</div>
+            ${(v !== 0 && dest) ? `<button class="btn-primary" style="margin-top:10px;padding:10px" onclick="openSyntheseTransfer('${b.key}')">${v < 0 ? 'Reprendre le virement' : 'Faire le virement'}</button>` : ''}
     </div>`;
   }).join('');
 
   const control = `<div class="syn-control">
-    <div><span>Total des trois virements</span><span>${sgn(s.sumRest)}</span></div>
-    ${s.advFlow !== 0 ? `<div><span>Avances (boîte ci-dessous)</span><span>${sgn(s.advFlow)}</span></div>` : ''}
-    <div><span>Variation du compte ce mois-ci</span><span>${sgn(s.compteDelta)}</span></div>
     <div><span>Écart</span><span class="${Math.abs(s.gap) < 0.005 ? 'ok' : 'ko'}">${Math.abs(s.gap) < 0.005 ? '0,00 € ✓' : sgn(s.gap)}</span></div>
   </div>`;
 
