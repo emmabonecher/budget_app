@@ -975,6 +975,12 @@ function openSyntheseTransfer(key) {
   document.getElementById('tx-amount').value = String(Math.abs(v)).replace('.', ',');
   document.getElementById('tx-date').value = syntheseDate();
 }
+
+let syntheseOpen = new Set();   // blocs dépliés (le temps de la session)
+function toggleSyntheseBlock(key) {
+  if (syntheseOpen.has(key)) syntheseOpen.delete(key); else syntheseOpen.add(key);
+  renderSynthese();
+}
   
 function renderSynthese() {
   const el = document.getElementById('synthese-content');
@@ -988,6 +994,11 @@ function renderSynthese() {
     const pk = tg.pocket ? getPocket(sp, tg.pocket) : null;
     return sp.label + (pk ? ' · ' + pk.label : '');
   };
+  const lines = {
+    courant:  `Budget ${fmtAuto(s.bC)} − dépensé ${fmtAuto(s.spentC)}`,
+    vacances: `Budget ${fmtAuto(s.bV)} − dépensé ${fmtAuto(s.spentV)}`,
+    livret:   `Recettes du compte ${fmtAuto(s.R)} + dépenses hors compte ${fmtAuto(s.H)} − transferts hors livrets ${fmtAuto(s.T)} − budget total ${fmtAuto(round2(s.bC + s.bV))}`
+  };
   const blocks = [
     { key: 'courant',  label: 'Courant',  tg: ENV_TARGETS.courant },
     { key: 'vacances', label: 'Vacances', tg: ENV_TARGETS.vacances },
@@ -998,10 +1009,12 @@ function renderSynthese() {
     const txt = v > 0 ? 'à virer' : v < 0 ? 'à reprendre' : 'à jour';
     const dest = destOf(b.tg);
     const route = !dest ? 'Destination non définie' : (v < 0 ? dest + ' → ' + cmp.label : cmp.label + ' → ' + dest);
-    return `<div class="syn-block">
-      <div class="syn-head"><span class="syn-label">${esc(b.label)}</span><span class="syn-dest">${esc(route)}</span></div>
+    const open = syntheseOpen.has(b.key);
+    return `<div class="syn-block" style="cursor:pointer" onclick="toggleSyntheseBlock('${b.key}')">
+      <div class="syn-head"><span class="syn-label">${esc(b.label)} <i class="ti ti-chevron-${open ? 'up' : 'down'}" style="font-size:12px"></i></span><span class="syn-dest">${esc(route)}</span></div>
       <div class="syn-amount ${cls}">${fmt(Math.abs(v))} <span style="font-size:13px;font-weight:400">${txt}</span></div>
-            ${(v !== 0 && dest) ? `<button class="btn-primary" style="margin-top:10px;padding:10px" onclick="openSyntheseTransfer('${b.key}')">${v < 0 ? 'Reprendre le virement' : 'Faire le virement'}</button>` : ''}
+      ${open ? `<div class="syn-formula">${esc(lines[b.key])}<br>Théorique ${fmt(s.theo[b.key])} · déjà viré ${fmt(s.done[b.key])}</div>` : ''}
+      ${(v !== 0 && dest) ? `<button class="btn-primary" style="margin-top:10px;padding:10px" onclick="event.stopPropagation();openSyntheseTransfer('${b.key}')">${v < 0 ? 'Reprendre le virement' : 'Faire le virement'}</button>` : ''}
     </div>`;
   }).join('');
 
