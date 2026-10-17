@@ -172,7 +172,8 @@ body { background: #f0f0f0; }
 .tx-action-btn i { font-size: 20px; width: 24px; }
 .select-bar { display: none; background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 8px 12px; margin-bottom: 10px; align-items: center; justify-content: space-between; }
 .select-bar.visible { display: flex; }
-.adv-dot{display:inline-block;width:12px;height:12px;border-radius:50%;margin-left:6px;vertical-align:middle;cursor:pointer;box-shadow:0 0 0 4px transparent}
+.tx-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.adv-dot{display:block;width:12px;height:12px;border-radius:50%;cursor:pointer;box-shadow:0 0 0 5px transparent}
 .adv-dot.open{background:#E24B4A}
 .adv-dot.partial{background:#F29D38}
 .adv-dot.done{background:#3FA55B}
@@ -1164,7 +1165,6 @@ function renderList(el, txs, withActions, ctx) {
     if (t.type==='transfer') {
       icon='ti-arrows-exchange'; bg='#E6F1FB'; catLabel=''; name='Transfert';
       badges=supportBadge(t.from, t.fromPocket)+' <i class="ti ti-arrow-right" style="font-size:11px"></i> '+supportBadge(t.to, t.toPocket);
-      if (t.advance) badges += `<span class="adv-dot ${t.advance}" title="Avance" onclick="event.stopPropagation(); cycleAdvance(${t.id})"></span>`;
       const out = ctx && slotMatches(ctx, t.from, t.fromPocket), inn = ctx && slotMatches(ctx, t.to, t.toPocket);
       if (out && !inn) amountHtml=`<div class="tx-amount neg">-${fmt(t.amount)}</div>`;
       else if (inn && !out) amountHtml=`<div class="tx-amount pos">+${fmt(t.amount)}</div>`;
@@ -1174,6 +1174,9 @@ function renderList(el, txs, withActions, ctx) {
       const shown = ctx ? round2(txParts(t).filter(x => slotMatches(ctx, x.support, x.pocket)).reduce((s, x) => s + x.amount, 0)) : t.amount;
       const delta = t.type==='income' ? shown : -shown;   // effet sur le solde
       amountHtml=`<div class="tx-amount ${delta>=0?'pos':'neg'}">${delta>=0?'+':'-'}${fmt(Math.abs(delta))}</div>`;
+    }
+    if (t.type==='transfer' && t.advance) {
+      amountHtml = `<div class="tx-right"><span class="adv-dot ${t.advance}" title="Avance" onclick="event.stopPropagation(); cycleAdvance(${t.id})"></span>${amountHtml}</div>`;
     }
     const isSelected = selectedIds.has(t.id);
     const checkbox = withActions && selectMode ? `<div class="tx-checkbox">${isSelected?'<i class="ti ti-check" style="font-size:12px;color:white"></i>':''}</div>` : '';
