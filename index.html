@@ -358,6 +358,7 @@ body { background: #f0f0f0; }
   <div class="section-title" style="margin-top:28px">Sauvegarde des données</div>
   <button class="btn-primary" onclick="exportData()"><i class="ti ti-download" style="margin-right:6px"></i>Exporter mes données</button>
   <button class="btn-secondary" onclick="document.getElementById('import-file').click()"><i class="ti ti-upload" style="margin-right:6px"></i>Importer une sauvegarde</button>
+  <button class="btn-secondary" onclick="openSheetsModal()"><i class="ti ti-table-export" style="margin-right:6px"></i>Exporter pour Google Sheets</button>
   <input type="file" id="import-file" accept=".json,application/json" style="display:none" onchange="importData(this.files[0]); this.value=''" />
 </div>
   <div class="page" id="page-analyse">
@@ -598,6 +599,20 @@ body { background: #f0f0f0; }
     </div>
     <button class="btn-primary" onclick="saveSupportEdit()">Enregistrer</button>
     <button class="btn-secondary" onclick="closeSupportEdit()">Annuler</button>
+  </div>
+</div>
+
+<!-- Export Google Sheets -->
+<div class="modal-bg" id="sheets-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeSheetsModal()"><i class="ti ti-x"></i></button>
+    <h2>Export pour Google Sheets</h2>
+    <div class="form-group"><label>Du</label><input type="date" id="sheets-from" /></div>
+    <div class="form-group"><label>Au</label><input type="date" id="sheets-to" /></div>
+    <button type="button" class="btn-secondary" onclick="setSheetsPeriod(0)">Année en cours</button>
+    <button type="button" class="btn-secondary" onclick="setSheetsPeriod(1)">Année précédente</button>
+    <button class="btn-primary" onclick="exportSheets()">Exporter</button>
+    <button class="btn-secondary" onclick="closeSheetsModal()">Annuler</button>
   </div>
 </div>
 
@@ -2392,6 +2407,60 @@ function downloadFile(file) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
+
+// ===== EXPORT GOOGLE SHEETS (fichier .xlsx à onglets) =====
+function openSheetsModal() { setSheetsPeriod(0); document.getElementById('sheets-modal').classList.add('open'); }
+function closeSheetsModal() { document.getElementById('sheets-modal').classList.remove('open'); }
+function setSheetsPeriod(back) {
+  const y = new Date().getFullYear() - back;
+  document.getElementById('sheets-from').value = y + '-01-01';
+  document.getElementById('sheets-to').value = y + '-12-31';
+}
+function sheetsDateCell(d) {   // vraie date pour Sheets (numéro de série)
+  return { t: 'n', v: Math.round(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86400000) + 25569, z: 'dd/mm/yyyy' };
+}
+function sheetsTransactionsRows(from, to) {
+  const supName = id => { const s = getSupportById(id); return s ? s.label : ''; };
+  const pocketName = (id, p) => { const s = getSupportById(id); const k = s && p ? getPocket(s, p) : null; return k ? k.label : ''; };
+  const advLabel = { open: 'À rembourser', partial: 'En cours', done: 'Remboursée' };
+  const rows = [['Date', 'Mois', 'Type', 'Description', 'Groupe', 'Catégorie', 'Enveloppe', 'Support', 'Poche', 'Vers support', 'Vers poche', 'Montant', 'Avance']];
+  transactions.filter(t => t.date >= from && t.date <= to)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id)
+    .forEach(t => {
+      const base = [sheetsDateCell(t.date), t.date.slice(0, 7)];
+      if (t.type === 'transfer') {
+        rows.push([...base, 'Transfert', '', '', '', '', supName(t.from), pocketName(t.from, t.fromPocket), supName(t.to), pocketName(t.to, t.toPocket), t.amount, advLabel[t.advance] || '']);
+        return;
+      }
+      const cat = getCatById(t.cat);
+      txParts(t).forEach(x => {
+        const env = t.type === 'expense' ? ((getEnvelopeById(envelopeOfPart(t, x)) || {}).label || '') : '';
+        rows.push([...base, t.type === 'expense' ? 'Dépense' : 'Recette', t.desc || '', (cat && cat.group) || '', cat ? cat.label : '', env, supName(x.support), pocketName(x.support, x.pocket), '', '', x.amount, '']);
+      });
+    });
+  return rows;
+}
+function addSheet(wb, name, rows, widths) {
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  if (widths) ws['!cols'] = widths.map(w => ({ wch: w }));
+  XLSX.utils.book_append_sheet(wb, ws, name);
+}
+function exportSheets() {
+  if (typeof XLSX === 'undefined') { alert("La bibliothèque d'export n'est pas encore chargée : réessayez avec une connexion."); return; }
+  const from = document.getElementById('sheets-from').value, to = document.getElementById('sheets-to').value;
+  if (!from || !to || from > to) { alert('Période invalide.'); return; }
+  const wb = XLSX.utils.book_new();
+  addSheet(wb, 'Transactions', sheetsTransactionsRows(from, to), [11, 9, 11, 28, 14, 30, 13, 18, 18, 18, 18, 11, 13]);
+  const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  const file = new File([data], 'budget-' + from + '_' + to + '.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  closeSheetsModal();
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    navigator.share({ files: [file], title: 'Export Mon budget' }).catch(err => { if (err && err.name !== 'AbortError') downloadFile(file); });
+    return;
+  }
+  downloadFile(file);
+}
+  
 function validTx(t) {
   if (!t || typeof t !== 'object' || !Number.isFinite(t.id) || !Number.isFinite(t.amount)
       || !/^\d{4}-\d{2}-\d{2}$/.test(t.date || '')) return false;
