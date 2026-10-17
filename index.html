@@ -2095,9 +2095,8 @@ function renderSupportDetail() {
   if (typeof supportViewPocket === 'string' && !getPocket(sp, supportViewPocket)) supportViewPocket = undefined;
   const ctx = { support: sp.id, pocket: supportViewPocket };
 
-  const k = monthKey(viewYear, viewMonth);
   const txs = transactions
-    .filter(t => t.date.startsWith(k) && txTouches(t, ctx))
+    .filter(t => txTouches(t, ctx))
     .sort((a, b) => b.date !== a.date ? b.date.localeCompare(a.date) : b.id - a.id);
 
   let bal, balLabel = 'Solde au ' + todayStr().split('-').reverse().join('/');
@@ -2131,11 +2130,6 @@ function renderSupportDetail() {
       <span class="balance-amount ${bal >= 0 ? 'positive' : 'negative'}" style="font-size:26px">${fmt(bal)}</span>
     </div>
     ${chipsHtml}
-    <div class="month-nav">
-      <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
-      <span class="month-label">${MONTHS[viewMonth]} ${viewYear}</span>
-      <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
-    </div>
     <div class="section-title">${txs.length} transaction${txs.length > 1 ? 's' : ''}</div>
     <div class="transaction-list" id="support-list"></div>`;
 
