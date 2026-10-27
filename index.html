@@ -360,6 +360,8 @@ body { background: #f0f0f0; }
   <button class="btn-secondary" onclick="document.getElementById('import-file').click()"><i class="ti ti-upload" style="margin-right:6px"></i>Importer une sauvegarde</button>
   <button class="btn-secondary" onclick="openSheetsModal()"><i class="ti ti-table-export" style="margin-right:6px"></i>Exporter pour Google Sheets</button>
   <input type="file" id="import-file" accept=".json,application/json" style="display:none" onchange="importData(this.files[0]); this.value=''" />
+    <div class="section-title" style="margin-top:28px">Fin d'année</div>
+  <button class="btn-secondary" onclick="openResetModal()"><i class="ti ti-eraser" style="margin-right:6px"></i>Remise à 0</button>    
 </div>
   <div class="page" id="page-analyse">
   <div class="settings-top">
@@ -614,6 +616,17 @@ body { background: #f0f0f0; }
     <button class="btn-primary" onclick="exportSheets()">Exporter</button>
     <button class="btn-secondary" onclick="closeSheetsModal()">Annuler</button>
   </div>
+  <!-- Remise à 0 -->
+<div class="modal-bg" id="reset-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeResetModal()"><i class="ti ti-x"></i></button>
+    <h2>Remise à 0</h2>
+    <div id="reset-modal-body"></div>
+    <button class="btn-secondary" id="reset-backup-btn" onclick="resetBackup()">1. Sauvegarder (fichier JSON)</button>
+    <button class="btn-primary" id="reset-go-btn" onclick="applyReset()" disabled style="opacity:.4">2. Remettre à 0</button>
+    <button class="btn-secondary" onclick="closeResetModal()">Annuler</button>
+  </div>
+</div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2671,6 +2684,77 @@ function exportSheets() {
     return;
   }
   downloadFile(file);
+}
+
+// ===== REMISE À 0 =====
+let resetBackupDone = false;
+// Les avances pas encore remboursées (rouge ou orange) sont conservées
+function resetKeeps(t) { return t.type === 'transfer' && (t.advance === 'open' || t.advance === 'partial'); }
+function resetCompute() {
+  const cutoff = todayStr();
+  const gone = t => t.date <= cutoff && !resetKeeps(t);
+  const toDelete = transactions.filter(gone), kept = transactions.filter(t => !gone(t));
+  // Nouveau solde de départ = ancien solde de départ + effet des transactions supprimées
+  const dSup = {}, dBucket = {};
+  const add = (sup, pocket, v) => {
+    dSup[sup] = round2((dSup[sup] || 0) + v);
+    const k = sup + '|' + (pocket || '');
+    dBucket[k] = round2((dBucket[k] || 0) + v);
+  };
+  toDelete.forEach(t => {
+    if (t.type === 'transfer') { add(t.from, t.fromPocket, -t.amount); add(t.to, t.toPocket, t.amount); }
+    else txParts(t).forEach(x => add(x.support, x.pocket, t.type === 'income' ? x.amount : -x.amount));
+  });
+  const problems = [];
+  const next = SUPPORTS.map(sp => {
+    const pockets = pocketsOf(sp).map(p => ({ ...p, initial: round2((Number(p.initial) || 0) + (dBucket[sp.id + '|' + p.id] || 0)) }));
+    if (sp.savings && pockets.length) {
+      // Un livret à poches n'a pas de montant à part : tout mouvement doit être dans une poche
+      const inPockets = round2(pocketsOf(sp).reduce((s, p) => s + (dBucket[sp.id + '|' + p.id] || 0), 0));
+      if (Math.abs(round2((dSup[sp.id] || 0) - inPockets)) > 0.004) problems.push(sp.label);
+      return { ...sp, initial: pocketsTotal(pockets), pockets };
+    }
+    return { ...sp, initial: round2((Number(sp.initial) || 0) + (dSup[sp.id] || 0)), pockets };
+  });
+  return { cutoff, toDelete, kept, next, problems };
+}
+function openResetModal() {
+  resetBackupDone = false;
+  const r = resetCompute();
+  const nbAdv = r.kept.filter(resetKeeps).length;
+  const lines = r.next.map(sp => `<div style="margin-top:6px"><strong>${esc(sp.label)}</strong> : ${fmt(sp.initial)}`
+    + pocketsOf(sp).map(p => `<div style="margin-left:14px;font-size:13px;color:var(--color-text-secondary)">${esc(p.label)} : ${fmt(p.initial)}</div>`).join('') + '</div>').join('');
+  document.getElementById('reset-modal-body').innerHTML =
+    `<p style="line-height:1.5">${r.toDelete.length} transaction(s) seront supprimées. ${nbAdv} avance(s) en cours (rouge ou orange) sont conservées.</p>`
+    + `<p style="line-height:1.5;margin-top:8px">Budgets : tous les budgets sont effacés.</p>`
+    + `<div class="section-title" style="margin-top:16px">Nouveaux soldes de départ</div>${lines}`
+    + (r.problems.length ? `<p style="margin-top:16px;color:var(--color-text-danger);line-height:1.5">Impossible : des transactions du livret « ${esc(r.problems.join(', '))} » n'ont pas de poche. Modifiez-les d'abord.</p>` : '')
+    + `<p style="margin:16px 0 8px;line-height:1.5">Avant de continuer, fais ton export Google Sheets, puis la sauvegarde ci-dessous.</p>`;
+  const go = document.getElementById('reset-go-btn');
+  go.disabled = true; go.style.opacity = '.4';
+  document.getElementById('reset-backup-btn').disabled = r.problems.length > 0;
+  document.getElementById('reset-modal').classList.add('open');
+}
+function closeResetModal() { document.getElementById('reset-modal').classList.remove('open'); }
+function resetBackup() {
+  exportData();
+  resetBackupDone = true;
+  const go = document.getElementById('reset-go-btn');
+  go.disabled = false; go.style.opacity = '1';
+}
+function applyReset() {
+  if (!resetBackupDone) return;
+  const r = resetCompute();
+  if (r.problems.length) return;
+  if (!confirm('Remettre à 0 ? ' + r.toDelete.length + ' transaction(s) seront supprimées, ainsi que tous les budgets. Cette action est définitive (sauf en restaurant la sauvegarde).')) return;
+  SUPPORTS = r.next; saveSupports();
+  transactions = r.kept;
+  budgets = {};
+  selectedIds = new Set(); selectMode = false;
+  save();
+  closeResetModal();
+  renderSettings();
+  updateDisplays();
 }
   
 function validTx(t) {
