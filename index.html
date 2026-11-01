@@ -392,7 +392,7 @@ body { background: #f0f0f0; }
       <button class="type-btn" id="btn-transfer" onclick="setType('transfer')"><i class="ti ti-arrows-exchange"></i> Transfert</button>
     </div>
     <div class="form-group" id="grp-desc">
-      <label>Description</label>
+      <label id="lbl-desc">Description</label>
       <input type="text" id="tx-desc" placeholder="Ex : Courses, Loyer..." />
     </div>
     <div class="form-group">
@@ -485,7 +485,7 @@ body { background: #f0f0f0; }
       <button class="type-btn" id="edit-btn-transfer" onclick="setEditType('transfer')"><i class="ti ti-arrows-exchange"></i> Transfert</button>
     </div>
     <div class="form-group" id="edit-grp-desc">
-      <label>Description</label>
+      <label id="edit-lbl-desc">Description</label>
       <input type="text" id="edit-tx-desc" placeholder="Ex : Courses, Loyer..." />
     </div>
     <div class="form-group">
@@ -617,7 +617,8 @@ body { background: #f0f0f0; }
     <button class="btn-secondary" onclick="closeSheetsModal()">Annuler</button>
   </div>
 </div>
-  <!-- Remise à 0 -->
+
+<!-- Remise à 0 -->
 <div class="modal-bg" id="reset-modal">
   <div class="modal">
     <button class="modal-close" onclick="closeResetModal()"><i class="ti ti-x"></i></button>
@@ -1384,8 +1385,9 @@ function renderList(el, txs, withActions, ctx) {
     let icon=cat?cat.icon:'ti-box', bg=cat?cat.color:'#F1EFE8';
     let catLabel=cat?(cat.group?cat.group+' · '+cat.label:cat.label):'Catégorie supprimée';
     let name=esc(t.desc), badges=(Array.isArray(t.splits) ? t.splits.map(x => supportBadge(x.support, x.pocket)).join(' ') : supportBadge(t.support, t.pocket)), amountHtml;
+    if (!name && t.type==='income') name='Recette';
     if (t.type==='transfer') {
-      icon='ti-arrows-exchange'; bg='#E6F1FB'; catLabel=''; name='Transfert';
+      icon='ti-arrows-exchange'; bg='#E6F1FB'; catLabel=''; name=t.desc ? esc(t.desc) : 'Transfert';
       badges=supportBadge(t.from, t.fromPocket)+' <i class="ti ti-arrow-right" style="font-size:11px"></i> '+supportBadge(t.to, t.toPocket);
       const out = ctx && slotMatches(ctx, t.from, t.fromPocket), inn = ctx && slotMatches(ctx, t.to, t.toPocket);
       if (out && !inn) amountHtml=`<div class="tx-amount neg">-${fmt(t.amount)}</div>`;
@@ -1594,7 +1596,8 @@ function applyTypeUI(p, type) {
   q('btn-expense').className = 'type-btn' + (type==='expense' ? ' active-expense' : '');
   q('btn-income').className = 'type-btn' + (type==='income' ? ' active-income' : '');
   q('btn-transfer').className = 'type-btn' + (type==='transfer' ? ' active-transfer' : '');
-  q('grp-desc').style.display = type==='transfer' ? 'none' : 'block';
+  q('grp-desc').style.display = 'block';
+  q('lbl-desc').textContent = type==='expense' ? 'Description' : 'Nom (facultatif)';
   q('grp-cat').style.display = type==='expense' ? 'block' : 'none';
   q('amount-hint').style.display = type==='expense' ? 'block' : 'none';
   q('sign-btn').style.display = type==='expense' ? '' : 'none';
@@ -1648,14 +1651,14 @@ function addTransaction() {
     if(amount<0){alert('Un montant négatif n\'est possible que pour une dépense.');return;}
     if(!amount||amount<=0||!date){alert('Veuillez remplir tous les champs.');return;}
     if(support===to&&fromPocket===toPocket){alert('Le départ et la cible doivent être différents (support ou poche).');return;}
-    tx={id:Date.now(),type:'transfer',desc:'',amount,date,from:support,to};
+    tx={id:Date.now(),type:'transfer',desc:document.getElementById('tx-desc').value.trim(),amount,date,from:support,to};
     if(fromPocket) tx.fromPocket=fromPocket;
     if(toPocket) tx.toPocket=toPocket;
     if(document.getElementById('tx-advance').checked) tx.advance='open';
   } else {
     const desc=document.getElementById('tx-desc').value.trim();
     if(txType==='income'&&amount<0){alert('Un montant négatif n\'est possible que pour une dépense.');return;}
-    if(!desc||!amount||(txType==='income'&&amount<=0)||!date){alert('Veuillez remplir tous les champs.');return;}
+    if((txType==='expense'&&!desc)||!amount||(txType==='income'&&amount<=0)||!date){alert('Veuillez remplir tous les champs.');return;}
     if(txType==='expense'&&!selectedCatId){alert('Veuillez choisir une catégorie.');return;}
     let parts=null;
     if(txType==='expense'&&splitOn['']){ const r=collectSplits('',amount); if(r.error){alert(r.error);return;} parts=r.parts; }
@@ -1861,14 +1864,14 @@ function saveEditTransaction() {
     if (amount < 0) { alert('Un montant négatif n\'est possible que pour une dépense.'); return; }
     if (!amount||amount<=0||!date) { alert('Veuillez remplir tous les champs.'); return; }
     if (support === to && fromPocket === toPocket) { alert('Le départ et la cible doivent être différents (support ou poche).'); return; }
-    nt = { id: old.id, type: 'transfer', desc: '', amount, date, from: support, to };
+    nt = { id: old.id, type: 'transfer', desc: document.getElementById('edit-tx-desc').value.trim(), amount, date, from: support, to };
     if (fromPocket) nt.fromPocket = fromPocket;
     if (toPocket) nt.toPocket = toPocket;
     if (document.getElementById('edit-tx-advance').checked) nt.advance = old.advance || 'open';
   } else {
     const desc = document.getElementById('edit-tx-desc').value.trim();
     if (editTxType === 'income' && amount < 0) { alert('Un montant négatif n\'est possible que pour une dépense.'); return; }
-    if (!desc||!amount||(editTxType === 'income' && amount <= 0)||!date) { alert('Veuillez remplir tous les champs.'); return; }
+    if ((editTxType === 'expense' && !desc)||!amount||(editTxType === 'income' && amount <= 0)||!date) { alert('Veuillez remplir tous les champs.'); return; }
     if (editTxType === 'expense' && !editSelectedCatId) { alert('Veuillez choisir une catégorie.'); return; }
     let parts = null;
     if (editTxType === 'expense' && splitOn['edit-']) { const r = collectSplits('edit-', amount); if (r.error) { alert(r.error); return; } parts = r.parts; }
@@ -2442,7 +2445,7 @@ function sheetsTransactionsRows(from, to) {
     .forEach(t => {
       const base = [sheetsDateCell(t.date), t.date.slice(0, 7)];
       if (t.type === 'transfer') {
-        rows.push([...base, 'Transfert', '', '', '', '', supName(t.from), pocketName(t.from, t.fromPocket), supName(t.to), pocketName(t.to, t.toPocket), t.amount, advLabel[t.advance] || '']);
+        rows.push([...base, 'Transfert', t.desc || '', '', '', '', supName(t.from), pocketName(t.from, t.fromPocket), supName(t.to), pocketName(t.to, t.toPocket), t.amount, advLabel[t.advance] || '']);
         return;
       }
       const cat = getCatById(t.cat);
