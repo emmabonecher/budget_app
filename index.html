@@ -715,6 +715,7 @@ const DEFAULT_SUPPORTS = [
   { id:'sup-cash', label:'Espèces',         icon:'ti-cash',          initial:0, pockets:[], color:150, savings:false }
 ];
 let SUPPORTS = [];
+const EXT_ID = 'ext-outside';   // destination « Extérieur » d'un transfert : l'argent sort de l'appli, sans suivi
 let lastSupportId = null;
 let lastPocketBySupport = {};            // dernière poche choisie, par support (le temps de la session)
 let expandedSupports = new Set();     // supports dépliés dans « Soldes »
@@ -793,7 +794,7 @@ function migrateTxList(list, supports) {
     if ('toEnv' in t) { if (t.toPocket === undefined) t.toPocket = t.toEnv; delete t.toEnv; changed = true; }
     if (t.type === 'transfer') {
       if (!valid.has(t.from)) { t.from = first; changed = true; }
-      if (!valid.has(t.to)) { t.to = first; changed = true; }
+      if (!valid.has(t.to) && t.to !== EXT_ID) { t.to = first; changed = true; }
       if (t.fromPocket !== undefined && !pocketOk(t.from, t.fromPocket)) { delete t.fromPocket; changed = true; }
       if (t.toPocket !== undefined && !pocketOk(t.to, t.toPocket)) { delete t.toPocket; changed = true; }
       return;
@@ -922,7 +923,7 @@ function isTarget(tg, supId, pocketId) {
 // Calcule les trois virements pour une liste de transactions (celles du mois affiché)
 function computeSynthese(txs) {
   const cid = compteSupport().id;
-  const isSavings = id => { const sp = getSupportById(id); return !!(sp && sp.savings); };
+  const isSavings = id => { if (id === EXT_ID) return true; const sp = getSupportById(id); return !!(sp && sp.savings); };
   const tgC = ENV_TARGETS.courant || null, tgV = ENV_TARGETS.vacances || null;
   const spent = { courant: 0, vacances: 0 };
   const done = { courant: 0, vacances: 0, livret: 0 };
@@ -1061,7 +1062,7 @@ function renderSynthese() {
   const adv = transactions.filter(t => t.type === 'transfer' && (t.advance === 'open' || t.advance === 'partial'))
     .sort((a, b) => b.date !== a.date ? b.date.localeCompare(a.date) : b.id - a.id);
   const advTotal = round2(adv.reduce((sum, t) => sum + t.amount, 0));
-  const lbl = id => (getSupportById(id) || {}).label || '';
+  const lbl = id => id === EXT_ID ? 'Extérieur' : ((getSupportById(id) || {}).label || '');
   const advRows = adv.map(t => `<div class="bgt-row" onclick="openEditFromList(${t.id})">
       <div class="bgt-row-label"><span class="adv-dot ${t.advance}" style="flex-shrink:0"></span><span>${t.date.split('-').reverse().join('/')} · ${esc(lbl(t.from))} → ${esc(lbl(t.to))}</span></div>
       <div class="bgt-row-right"><div class="bgt-row-amt">${fmt(t.amount)}</div></div></div>`).join('');
@@ -1159,8 +1160,10 @@ function defaultToSupport(fromId) {
 }
 function fillSupportSelect(selectId, selected) {
   const el = document.getElementById(selectId);
-  el.innerHTML = SUPPORTS.map(sp => `<option value="${esc(sp.id)}">${esc(sp.label)}</option>`).join('');
-  el.value = getSupportById(selected) ? selected : SUPPORTS[0].id;
+  const withExt = /support-to$/.test(selectId);   // seule la liste « Vers » propose l'extérieur
+  el.innerHTML = SUPPORTS.map(sp => `<option value="${esc(sp.id)}">${esc(sp.label)}</option>`).join('')
+    + (withExt ? `<option value="${EXT_ID}">Extérieur</option>` : '');
+  el.value = (getSupportById(selected) || (withExt && selected === EXT_ID)) ? selected : SUPPORTS[0].id;
 }
 // Liste des poches d'un support dans un <select>. Un support qui a des poches impose d'en choisir une :
 // « Sans poche » n'est proposé que pour une ancienne transaction qui n'en avait pas.
@@ -1359,6 +1362,7 @@ function supportColors(id, pocketId) {
   return { bg: `hsl(${hh} ${Math.round(70 + t * 15)}% ${Math.round(93 - t * 16)}%)`, fg: `hsl(${hh} 65% 24%)` };
 }
 function supportBadge(id, pocketId) {
+  if (id === EXT_ID) return '<span class="tx-payment-badge" style="background:#F1EFE8;color:#5F5E5A"><i class="ti ti-external-link" style="font-size:10px"></i>Extérieur</span>';
   const sp = getSupportById(id);
   if (!sp) return '';
   const pocket = pocketId ? getPocket(sp, pocketId) : null;
@@ -2436,7 +2440,7 @@ function sheetsDateCell(d) {   // vraie date pour Sheets (numéro de série)
   return { t: 'n', v: Math.round(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86400000) + 25569, z: 'dd/mm/yyyy' };
 }
 function sheetsTransactionsRows(from, to) {
-  const supName = id => { const s = getSupportById(id); return s ? s.label : ''; };
+  const supName = id => { if (id === EXT_ID) return 'Extérieur'; const s = getSupportById(id); return s ? s.label : ''; };
   const pocketName = (id, p) => { const s = getSupportById(id); const k = s && p ? getPocket(s, p) : null; return k ? k.label : ''; };
   const advLabel = { open: 'À rembourser', partial: 'En cours', done: 'Remboursée' };
   const rows = [['Date', 'Mois', 'Type', 'Description', 'Groupe', 'Catégorie', 'Enveloppe', 'Support', 'Poche', 'Vers support', 'Vers poche', 'Montant', 'Avance']];
@@ -2635,11 +2639,11 @@ function sheetsBilanRows(from, to) {
     ? (Number((getPocket(b.sup, b.pocket) || {}).initial) || 0)
     : (Number(b.sup.initial) || 0) - pocketsOf(b.sup).reduce((s, p) => s + (Number(p.initial) || 0), 0);
   const flows = (b, test) => {
-    const r = { tr: 0, inc: 0, exp: 0 };
+    const r = { tr: 0, ext: 0, inc: 0, exp: 0 };
     transactions.forEach(t => {
       if (!test(t.date)) return;
       if (t.type === 'transfer') {
-        if (t.from === b.sup.id && (t.fromPocket || null) === b.pocket) r.tr -= t.amount;
+        if (t.from === b.sup.id && (t.fromPocket || null) === b.pocket) { if (t.to === EXT_ID) r.ext += t.amount; else r.tr -= t.amount; }
         if (t.to === b.sup.id && (t.toPocket || null) === b.pocket) r.tr += t.amount;
       } else txParts(t).forEach(x => {
         if (x.support === b.sup.id && (x.pocket || null) === b.pocket) r[t.type === 'income' ? 'inc' : 'exp'] += x.amount;
@@ -2649,20 +2653,20 @@ function sheetsBilanRows(from, to) {
   };
   const rowsE = buckets.map(b => {
     const before = flows(b, d => d < from), per = flows(b, d => d >= from && d <= to);
-    return { label: b.label, optional: b.optional, debut: round2(initOf(b) + before.tr + before.inc - before.exp), tr: round2(per.tr), inc: round2(per.inc), exp: round2(per.exp) };
-  }).filter(x => !x.optional || x.debut || x.tr || x.inc || x.exp);
+    return { label: b.label, optional: b.optional, debut: round2(initOf(b) + before.tr - before.ext + before.inc - before.exp), tr: round2(per.tr), ext: round2(per.ext), inc: round2(per.inc), exp: round2(per.exp) };
+  }).filter(x => !x.optional || x.debut || x.tr || x.ext || x.inc || x.exp);
   const c2 = cAvg + 2;
   put(2, c2, 'ÉPARGNE');
-  ['Livret / poche', 'Début de période', 'Versements nets', 'Recettes', 'Dépenses exceptionnelles', 'Fin de période'].forEach((h, i) => put(3, c2 + i, h));
+  ['Livret / poche', 'Début de période', 'Versements nets', "Sorties vers l'extérieur", 'Recettes', 'Dépenses exceptionnelles', 'Fin de période'].forEach((h, i) => put(3, c2 + i, h));
   rowsE.forEach((x, i) => {
     const r = 4 + i;
-    put(r, c2, x.label); put(r, c2 + 1, sheetsNum(x.debut)); put(r, c2 + 2, sheetsNum(x.tr)); put(r, c2 + 3, sheetsNum(x.inc)); put(r, c2 + 4, sheetsNum(x.exp));
-    put(r, c2 + 5, sheetsNum(x.debut + x.tr + x.inc - x.exp, `${ref(r, c2 + 1)}+${ref(r, c2 + 2)}+${ref(r, c2 + 3)}-${ref(r, c2 + 4)}`));
+    put(r, c2, x.label); put(r, c2 + 1, sheetsNum(x.debut)); put(r, c2 + 2, sheetsNum(x.tr)); put(r, c2 + 3, sheetsNum(x.ext)); put(r, c2 + 4, sheetsNum(x.inc)); put(r, c2 + 5, sheetsNum(x.exp));
+    put(r, c2 + 6, sheetsNum(x.debut + x.tr - x.ext + x.inc - x.exp, `${ref(r, c2 + 1)}+${ref(r, c2 + 2)}-${ref(r, c2 + 3)}+${ref(r, c2 + 4)}-${ref(r, c2 + 5)}`));
   });
   const re = 4 + rowsE.length;
   put(re, c2, 'TOTAL');
-  ['debut', 'tr', 'inc', 'exp'].forEach((key, i) => put(re, c2 + 1 + i, sheetsNum(sum(rowsE.map(x => x[key])), rowsE.length ? `SUM(${ref(4, c2 + 1 + i)}:${ref(re - 1, c2 + 1 + i)})` : null)));
-  put(re, c2 + 5, sheetsNum(sum(rowsE.map(x => x.debut + x.tr + x.inc - x.exp)), rowsE.length ? `SUM(${ref(4, c2 + 5)}:${ref(re - 1, c2 + 5)})` : null));
+  ['debut', 'tr', 'ext', 'inc', 'exp'].forEach((key, i) => put(re, c2 + 1 + i, sheetsNum(sum(rowsE.map(x => x[key])), rowsE.length ? `SUM(${ref(4, c2 + 1 + i)}:${ref(re - 1, c2 + 1 + i)})` : null)));
+  put(re, c2 + 6, sheetsNum(sum(rowsE.map(x => x.debut + x.tr - x.ext + x.inc - x.exp)), rowsE.length ? `SUM(${ref(4, c2 + 6)}:${ref(re - 1, c2 + 6)})` : null));
   return grid;
 }
   
@@ -2676,7 +2680,7 @@ function exportSheets() {
   const from = document.getElementById('sheets-from').value, to = document.getElementById('sheets-to').value;
   if (!from || !to || from > to) { alert('Période invalide.'); return; }
   const wb = XLSX.utils.book_new();
-  addSheet(wb, 'Bilan', sheetsBilanRows(from, to), [30, 12, 14, 3, 18, 11, 11, 13, 11, 14, 3, 30, 14, 14, 11, 14, 14]);
+  addSheet(wb, 'Bilan', sheetsBilanRows(from, to), [30, 12, 14, 3, 18, 11, 11, 13, 11, 14, 3, 30, 14, 14, 14, 11, 14, 14]);
   addSheet(wb, 'Récap dépenses', sheetsRecapRows(from, to), [14, 32, 12, 12].concat(new Array(24).fill(10)));
   addSheet(wb, 'Transactions', sheetsTransactionsRows(from, to), [11, 9, 11, 28, 14, 30, 13, 18, 18, 18, 18, 11, 13]);
   const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
