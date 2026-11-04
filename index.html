@@ -1482,65 +1482,92 @@ function toggleBudgetEmpty(gi) {
   updateDisplays();
 }
 
+// Calculs d'une catégorie pour le mois affiché, dans la période budgétaire (null hors période ou sans montant mensuel)
+//  B = montant mensuel, N = mois de la période, k = rang du mois affiché,
+//  budget du mois = min(B, (N×B − dépensé avant) / (N − k + 1)), marge = k×B − dépensé à ce jour.
+function periodStats(catId, perMonth, mk) {
+  const B = getBudgetForCat(catId);
+  if (B === null) return null;
+  const N = periodMonths(), k = monthIndex(mk) - monthIndex(PERIOD.start) + 1;
+  let prev = 0;
+  Object.keys(perMonth).forEach(m => { if (m >= PERIOD.start && m < mk) prev += perMonth[m]; });
+  prev = round2(prev);
+  const month = round2(perMonth[mk] || 0), total = round2(prev + month);
+  const budgetMois = round2(Math.max(0, Math.min(B, (N * B - prev) / (N - k + 1))));
+  const marge = round2(k * B - total);
+  let status = 'g';
+  if (total > round2(N * B)) status = 'r';
+  else if (month > budgetMois && marge < 0) status = 'o';
+  return { B, N, k, prev, month, total, budgetMois, marge, status, over: round2(total - N * B) };
+}
+
 function renderBudgetPage(txs) {
   const el = document.getElementById('budget-page-content');
   const mk = monthKey(viewYear, viewMonth);
-  const hasBudget = mk >= PERIOD.start && mk <= PERIOD.end && Object.values(PERIOD.amounts).some(v => v >= 0);
-  const totalBudget = hasBudget ? Object.values(PERIOD.amounts).reduce((s, v) => s + (v || 0), 0) : 0;
-  // Les dépenses payées depuis un livret (Exceptionnel) ne pèsent pas sur le budget : on ne compte que budgetAmount
+  const inPeriod = validPeriod(PERIOD) && mk >= PERIOD.start && mk <= PERIOD.end;
+  const hasBudget = inPeriod && Object.values(PERIOD.amounts).some(v => v > 0);
+  const ABBR = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  const frMonth = k => ABBR[+k.slice(5, 7) - 1] + ' ' + k.slice(0, 4);
+  const periodTxt = validPeriod(PERIOD) ? frMonth(PERIOD.start) + ' – ' + frMonth(PERIOD.end) : '';
+  // Dépensé par catégorie et par mois (hors parts payées depuis un livret), sur toute la période
+  const perCat = {};
+  transactions.forEach(t => {
+    if (t.type !== 'expense') return;
+    const a = budgetAmount(t);
+    if (!a) return;
+    const m = t.date.slice(0, 7);
+    (perCat[t.cat] = perCat[t.cat] || {})[m] = round2(((perCat[t.cat] || {})[m] || 0) + a);
+  });
+  const stats = {};
+  EXPENSE_CATS.forEach(c => { stats[c.id] = periodStats(c.id, perCat[c.id] || {}, mk); });
   const spentEnv = spentByEnvelope(txs);
-  let html = `<button class="edit-budget-btn" onclick="openBudgetModal()">
+
+  let html = '';
+  if (validPeriod(PERIOD)) {
+    const info = inPeriod ? `mois ${monthIndex(mk) - monthIndex(PERIOD.start) + 1} sur ${periodMonths()}` : 'hors période';
+    html += `<div class="bgt-summary muted"><span>Période ${esc(periodTxt)}</span><span><strong>${info}</strong></span></div>`;
+  }
+  html += `<button class="edit-budget-btn" onclick="openBudgetModal()">
     <i class="ti ti-edit"></i>${hasBudget?'Modifier le budget de la période':'Définir le budget de la période'}
   </button>`;
 
-  // Une carte par enveloppe : ce qu'il reste à dépenser, puis dépensé / budgété
-  const tiles = budgetEnvelopes().map(e => {
-    const spent = spentEnv[e.id], budget = envelopeBudget(e.id);
-    if (budget === null && spent === 0) return '';
-    const main = budget !== null
-      ? (round2(budget - spent) >= 0 ? `<div class="env-tile-rest pos">${fmtAuto(round2(budget - spent))}</div><div class="env-tile-hint">reste</div>`
-                                     : `<div class="env-tile-rest neg">${fmtAuto(round2(spent - budget))}</div><div class="env-tile-hint neg">dépassé</div>`)
-      : `<div class="env-tile-rest">${fmtAuto(spent)}</div><div class="env-tile-hint">dépensé</div>`;
-    const sub = budget !== null ? `${fmtAuto(spent)} / ${fmtInt(budget)}` : 'pas de budget défini';
-    return `<div class="env-tile"><div class="env-tile-label">${esc(e.label)}</div>${main}<div class="env-tile-sub">${sub}</div></div>`;
-  }).join('');
-  if (tiles) html += `<div class="env-tiles">${tiles}</div>`;
-  const totalSpent = round2(budgetEnvelopes().reduce((s, e) => s + spentEnv[e.id], 0));
   if (hasBudget) {
-    html += `<div class="bgt-summary"><span>Total du mois</span><span><strong>${fmtAuto(totalSpent)} / ${fmtInt(totalBudget)}</strong> ${restHtml(totalBudget, totalSpent)}</span></div>`;
+    // Courant : budgets du mois − tout ce qui est dépensé ce mois-ci (les dépassements comptent, les marges non)
+    let bC = 0, bV = 0, sV = 0;
+    EXPENSE_CATS.forEach(c => {
+      const st = stats[c.id];
+      if (!st) return;
+      if (envelopeOfGroup(c.group) === 'courant') bC += st.budgetMois;
+      else if (envelopeOfGroup(c.group) === 'vacances') { bV += st.N * st.B; sV += st.total; }
+    });
+    const restC = round2(bC - spentEnv.courant), restV = round2(bV - sV);
+    const box = (label, rest, foot) => `<div class="env-tile"><div class="env-tile-label">${label}</div><div class="env-tile-hint" style="margin-top:6px">${rest < 0 ? 'dépassé' : 'reste'}</div><div class="env-tile-rest ${rest < 0 ? 'neg' : 'pos'}" style="margin-top:0">${fmtAuto(Math.abs(rest))}</div><div class="env-tile-hint">${foot}</div></div>`;
+    const hasV = EXPENSE_CATS.some(c => stats[c.id] && envelopeOfGroup(c.group) === 'vacances');
+    html += `<div class="env-tiles" style="margin-top:6px">${box('Courant', restC, 'pour ' + MONTHS[viewMonth].toLowerCase())}${hasV ? box('Vacances', restV, 'pour la période') : ''}</div>`;
   }
-  const exc = spentEnv.exceptionnel;
-  if (exc !== 0) html += `<div class="bgt-summary muted"><span>Exceptionnel</span><span><strong>${fmtAuto(exc)}</strong></span></div>`;
 
   // Un bloc par groupe de catégories. Les catégories sans budget ni dépense ce mois-ci sont repliées.
   GROUPS.forEach((g, gi) => {
     const groupCats = EXPENSE_CATS.filter(c => c.group === g);
     if (!groupCats.length) return;
-    const rows = groupCats.map(cat => {
-      const spent = round2(txs.filter(t => t.type === 'expense' && t.cat === cat.id).reduce((s, t) => s + budgetAmount(t), 0));
-      return { cat, spent, budget: getBudgetForCat(cat.id) };
-    });
-    const groupSpent = round2(rows.reduce((s, r) => s + r.spent, 0));
-    const groupBudget = rows.reduce((s, r) => s + (r.budget !== null ? r.budget : 0), 0);
-    const hasGroupBudget = rows.some(r => r.budget !== null);
-    // Repliées : aucune dépense ce mois-ci et pas de budget (ou un budget à 0)
-    const active = rows.filter(r => r.spent !== 0 || (r.budget !== null && r.budget !== 0));
-    const idle = rows.filter(r => !(r.spent !== 0 || (r.budget !== null && r.budget !== 0)));
+    const rows = groupCats.map(cat => ({ cat, st: stats[cat.id], spent: round2((perCat[cat.id] || {})[mk] || 0) }));
+    const isActive = r => r.spent !== 0 || (r.st && r.st.B !== 0);
+    const active = rows.filter(isActive), idle = rows.filter(r => !isActive(r));
+    const colour = { g: 'var(--color-text-success)', o: 'var(--color-text-warning, #c77700)', r: 'var(--color-text-danger)' };
     const rowHtml = r => {
-      const { cat, spent, budget } = r;
-      const amt = budget !== null
-        ? `<div class="bgt-row-amt">${fmtAuto(spent)} / ${fmtInt(budget)}</div>${restHtml(budget, spent)}`
-        : (spent !== 0 ? `<div class="bgt-row-amt">${fmtAuto(spent)}</div><span class="bgt-rest muted">sans budget</span>` : `<span class="bgt-rest muted">sans budget</span>`);
+      const { cat, st, spent } = r;
+      let amt;
+      if (st) {
+        amt = `<div class="bgt-row-amt" style="color:${colour[st.status]}">${fmtAuto(st.month)} <span style="opacity:.75">/ ${fmtInt(st.budgetMois)}</span></div>`
+          + (st.status === 'r' ? `<span class="bgt-rest neg">période dépassée de ${fmtInt(st.over)}</span>` : '');
+      } else amt = spent !== 0 ? `<div class="bgt-row-amt">${fmtAuto(spent)}</div><span class="bgt-rest muted">sans budget</span>` : `<span class="bgt-rest muted">sans budget</span>`;
       return `<div class="bgt-row" onclick="openAnalyse('${cat.id}')">
         <div class="bgt-row-label"><i class="ti ${cat.icon}"></i><span>${esc(cat.label)}</span></div>
         <div class="bgt-row-right">${amt}</div></div>`;
     };
     const open = budgetShowEmpty.has(g);
-    const head = hasGroupBudget
-      ? `<span class="bgt-group-amt"><strong>${fmtAuto(groupSpent)} / ${fmtInt(groupBudget)}</strong> ${restHtml(groupBudget, groupSpent)}</span>`
-      : (groupSpent !== 0 ? `<span class="bgt-group-amt"><strong>${fmtAuto(groupSpent)}</strong></span>` : '');
     html += `<div class="bgt-group">
-      <div class="bgt-group-head"><span class="bgt-group-name">${esc(g)}<em>${esc((getEnvelopeById(envelopeOfGroup(g)) || {}).label || '')}</em></span>${head}</div>
+      <div class="bgt-group-head"><span class="bgt-group-name">${esc(g)}<em>${esc((getEnvelopeById(envelopeOfGroup(g)) || {}).label || '')}</em></span></div>
       ${active.map(rowHtml).join('')}
       ${idle.length ? `<button class="bgt-more" onclick="toggleBudgetEmpty(${gi})"><i class="ti ti-chevron-${open ? 'up' : 'down'}"></i> ${open ? 'Masquer' : idle.length + ' autre' + (idle.length > 1 ? 's' : '') + ' catégorie' + (idle.length > 1 ? 's' : '')}</button>` : ''}
       ${open ? idle.map(rowHtml).join('') : ''}
