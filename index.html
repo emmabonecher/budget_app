@@ -255,6 +255,13 @@ body { background: #f0f0f0; }
 .set-group.dragging { opacity: 0.9; }
   /* ===== Analyse ===== */
 .budget-item:active { background: var(--color-background-secondary); }
+.det-head { border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 14px; margin-bottom: 16px; }
+.det-sec { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin: 14px 0 6px; font-size: 12px; color: var(--color-text-secondary); }
+.det-sec b { font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; }
+.det-note { font-size: 12px; color: var(--color-text-secondary); margin-top: 4px; }
+.month-sep { display: flex; justify-content: space-between; align-items: baseline; margin: 14px 0 8px; }
+.month-sep b { font-size: 12px; font-weight: 500; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: 0.05em; }
+.month-sep span { font-size: 13px; color: var(--color-text-secondary); }
 .analyse-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .analyse-head .cat-row-icon { width: 40px; height: 40px; border-radius: 10px; }
 .analyse-title { font-size: 16px; font-weight: 500; color: var(--color-text-primary); }
@@ -3041,53 +3048,84 @@ function renderAnalyse() {
   if (!analyseCatId) return;
   const cat = getCatById(analyseCatId);
   if (!cat) { analyseCatId = null; return; }
+  const mk = monthKey(viewYear, viewMonth);
+  const sortTx = (a, b) => b.date !== a.date ? b.date.localeCompare(a.date) : b.id - a.id;
+  const catTx = transactions.filter(t => t.type === 'expense' && t.cat === analyseCatId);
+  const monthTx = m => catTx.filter(t => t.date.startsWith(m)).sort(sortTx);
+  const spentOf = list => round2(list.reduce((s, t) => s + budgetAmount(t), 0));
+  const excOf = list => round2(list.reduce((s, t) => s + exceptionalAmount(t), 0));
+  const txs = monthTx(mk), spent = spentOf(txs), exceptional = excOf(txs);
 
-  const txs = getMonthTx()
-    .filter(t => t.type === 'expense' && t.cat === analyseCatId)
-    .sort((a, b) => b.date !== a.date ? b.date.localeCompare(a.date) : b.id - a.id);
-  // Dépensé = ce qui pèse sur le budget ; les dépenses payées depuis un livret sont indiquées à part
-  const spent = round2(txs.reduce((s, t) => s + budgetAmount(t), 0));
-  const exceptional = round2(txs.reduce((s, t) => s + exceptionalAmount(t), 0));
-  const budget = getBudgetForCat(analyseCatId);
+  // Dépensé par mois (hors livrets) pour les calculs de période
+  const perMonth = {};
+  catTx.forEach(t => { const m = t.date.slice(0, 7), a = budgetAmount(t); if (a) perMonth[m] = round2((perMonth[m] || 0) + a); });
+  const st = periodStats(analyseCatId, perMonth, mk);
 
-  let budgetHtml = '';
-  if (budget !== null) {
-    const pct = budget > 0 ? Math.max(0, Math.min(100, Math.round(spent / budget * 100))) : 100;
-    const color = budget === 0
-      ? (spent <= 0 ? '#1D9E75' : '#E24B4A')
-      : (pct > 90 ? '#E24B4A' : pct > 70 ? '#EF9F27' : '#1D9E75');
-    const left = budget - spent;
-    budgetHtml = `<div class="progress-bar" style="margin:12px 0 8px"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
-      <div style="font-size:13px;color:${left >= 0 ? 'var(--color-text-secondary)' : 'var(--color-text-danger)'}">
-        ${left >= 0 ? 'Reste ' + fmt(left) : 'Dépassement de ' + fmt(-left)}
-      </div>`;
+  const ABBR = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
+  const frMonth = k => ABBR[+k.slice(5, 7) - 1] + ' ' + k.slice(0, 4);
+  const GREEN = 'var(--color-text-success)', ORANGE = 'var(--color-text-warning, #c77700)', RED = 'var(--color-text-danger)';
+  const BARG = '#1D9E75', BARO = '#EF9F27', BARR = '#E24B4A';
+  // Barre avec un trait de repère ; l'échelle laisse un peu de place après la plus grande valeur
+  const bar = (value, mark, scale, color) => {
+    const w = scale > 0 ? Math.max(0, Math.min(100, value / scale * 100)) : 0, m = scale > 0 ? Math.max(0, Math.min(100, mark / scale * 100)) : 0;
+    return `<div style="position:relative;height:8px;background:var(--color-background-secondary);border-radius:4px;margin:8px 0 6px">
+      <div style="width:${w}%;height:100%;background:${color};border-radius:4px"></div>
+      <div style="position:absolute;top:-3px;bottom:-3px;left:${m}%;width:2px;background:var(--color-text-primary);border-radius:1px"></div></div>`;
+  };
+
+  let headHtml;
+  if (st) {
+    const left = st.N - st.k + 1;
+    // Mois : dépensé / budget du mois, marge, barre avec le trait au budget du mois
+    const mColor = st.status === 'r' ? RED : st.month > st.budgetMois ? ORANGE : GREEN;
+    const mBar = st.status === 'r' ? BARR : st.month > st.budgetMois ? BARO : BARG;
+    const mScale = Math.max(st.month, st.budgetMois) * 1.13;
+    const margeTxt = st.marge >= 0 ? `marge <strong style="color:${GREEN}">${fmtInt(st.marge)}</strong>` : `<strong style="color:${RED}">au-delà de la marge de ${fmtInt(-st.marge)}</strong>`;
+    // Période : dépensé / budgété à ce jour, reste, barre avec le trait au budgété à ce jour
+    const toDate = round2(st.k * st.B), full = round2(st.N * st.B), restP = round2(full - st.total);
+    const pColor = st.total > full ? RED : st.total > toDate ? ORANGE : GREEN;
+    const pBar = st.total > full ? BARR : st.total > toDate ? BARO : BARG;
+    headHtml = `
+      <div class="det-sec"><b>${MONTHS[viewMonth]}</b><span>reste ${left} mois dont celui-ci</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+        <span><span style="font-size:26px;font-weight:500;color:${mColor}">${fmtInt(st.month)}</span> <span style="font-size:14px;color:var(--color-text-secondary)">/ ${fmtInt(st.budgetMois)}</span></span>
+        <span style="font-size:13px">${margeTxt}</span></div>
+      ${bar(st.month, st.budgetMois, mScale, mBar)}
+      <div class="det-note">dépensé ${fmtInt(st.month)} · budget du mois ${fmtInt(st.budgetMois)}</div>
+      <hr style="border:none;border-top:0.5px solid var(--color-border-tertiary);margin:14px 0 0">
+      <div class="det-sec"><b>Période</b><span>${frMonth(PERIOD.start)} – ${frMonth(PERIOD.end)}</span></div>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+        <span><span style="font-size:26px;font-weight:500;color:${pColor}">${fmtInt(st.total)}</span> <span style="font-size:14px;color:var(--color-text-secondary)">/ ${fmtInt(toDate)} budgétés</span></span>
+        <span style="font-size:13px">${restP >= 0 ? `reste <strong>${fmtInt(restP)}</strong>` : `<strong style="color:${RED}">dépassé de ${fmtInt(-restP)}</strong>`}</span></div>
+      ${bar(st.total, toDate, Math.max(st.total, full) , pBar)}
+      <div class="det-note">budget de la période ${fmtInt(full)} · le trait = budgété à ce jour</div>`;
+  } else {
+    // Hors période ou sans budget : simple total du mois
+    headHtml = `<div class="det-sec"><b>${MONTHS[viewMonth]}</b><span>${getBudgetForCat(analyseCatId) === null ? 'sans budget' : ''}</span></div>
+      <div><span style="font-size:26px;font-weight:500">${fmtInt(spent)}</span> <span style="font-size:14px;color:var(--color-text-secondary)">dépensé</span></div>`;
   }
+  const excHtml = exceptional !== 0 ? `<div class="det-note">Exceptionnel (payé depuis un livret, hors budget) : ${fmt(exceptional)}</div>` : '';
+
+  // Transactions du mois affiché uniquement
+  const listHtml = `<div class="section-title">${txs.length} transaction${txs.length > 1 ? 's' : ''}</div><div class="transaction-list" id="analyse-list"></div>`;
 
   document.getElementById('analyse-content').innerHTML = `
-    <div class="analyse-head">
-      <div class="cat-row-icon" style="background:${cat.color || '#EAF3DE'}"><i class="ti ${cat.icon}" style="font-size:18px;color:var(--color-text-primary)"></i></div>
-      <div>
-        <div class="analyse-title">${cat.label}</div>
-        <div class="analyse-sub">${cat.group || ''}</div>
-      </div>
-    </div>
     <div class="month-nav">
       <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
       <span class="month-label">${MONTHS[viewMonth]} ${viewYear}</span>
       <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
     </div>
-    <div class="balance-card" style="text-align:left">
-      <div class="balance-label">Dépensé ce mois-ci</div>
-      <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">
-        <span class="balance-amount" style="font-size:26px">${fmt(spent)}</span>
-        ${budget !== null ? `<span style="font-size:14px;color:var(--color-text-secondary)">/ ${fmtInt(budget)}</span>` : ''}
+    <div class="det-head">
+      <div class="analyse-head" style="margin-bottom:0">
+        <div class="cat-row-icon" style="background:${cat.color || '#EAF3DE'}"><i class="ti ${cat.icon}" style="font-size:18px;color:var(--color-text-primary)"></i></div>
+        <div>
+          <div class="analyse-title">${cat.label}</div>
+          <div class="analyse-sub">${cat.group ? esc(cat.group) + ' · ' + esc((getEnvelopeById(envelopeOfGroup(cat.group)) || {}).label || '') : ''}</div>
+        </div>
       </div>
-      ${budgetHtml}
-      ${exceptional !== 0 ? `<div style="font-size:13px;color:var(--color-text-secondary);margin-top:8px">Exceptionnel (payé depuis un livret, hors budget) : ${fmt(exceptional)}</div>` : ''}
+      ${headHtml}${excHtml}
     </div>
-    <div class="section-title">${txs.length} transaction${txs.length > 1 ? 's' : ''}</div>
-    <div class="transaction-list" id="analyse-list"></div>`;
-
+    ${listHtml}`;
   renderList(document.getElementById('analyse-list'), txs, true);
 }
 
