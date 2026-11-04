@@ -455,8 +455,12 @@ body { background: #f0f0f0; }
     <div id="copy-banner-container"></div>
     <div id="budget-editor-rows"></div>
     <div style="border-top:0.5px solid var(--color-border-tertiary);margin-top:8px;padding-top:14px;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:13px;color:var(--color-text-secondary)">Total budgété</span>
+      <span style="font-size:13px;color:var(--color-text-secondary)">Total par mois</span>
       <span style="font-size:16px;font-weight:500;color:var(--color-text-primary)" id="budget-editor-total">0 €</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0 14px;">
+      <span style="font-size:13px;color:var(--color-text-secondary)">Total sur la période</span>
+      <span style="font-size:16px;font-weight:500;color:var(--color-text-primary)" id="budget-editor-total-period">0 €</span>
     </div>
     <button class="btn-primary" onclick="saveBudget()">Enregistrer</button>
     <button class="btn-secondary" onclick="closeBudgetModal()">Annuler</button>
@@ -703,6 +707,40 @@ function save() {
 }
 try { transactions = JSON.parse(localStorage.getItem('gestion_tx_v4')||'[]'); } catch(e){}
 try { budgets = JSON.parse(localStorage.getItem('gestion_budgets_v4')||'{}'); } catch(e){}
+
+// ===== PÉRIODE BUDGÉTAIRE =====
+// Une période = un mois de début, un mois de fin et un montant MENSUEL par catégorie.
+// Budget de la période d'une catégorie = montant mensuel × nombre de mois de la période.
+// (« budgets », par mois, est l'ancien format : il ne sert plus qu'à reprendre les données existantes.)
+let PERIOD = { start: '', end: '', amounts: {} };
+function validMonthKey(k) { return typeof k === 'string' && /^\d{4}-(0[1-9]|1[0-2])$/.test(k); }
+function monthIndex(k) { return +k.slice(0, 4) * 12 + (+k.slice(5, 7) - 1); }   // « AAAA-MM » → nombre de mois
+function addMonths(k, n) { const i = monthIndex(k) + n; return Math.floor(i / 12) + '-' + String(i % 12 + 1).padStart(2, '0'); }
+function periodMonths(p) { p = p || PERIOD; return validMonthKey(p.start) && validMonthKey(p.end) ? Math.max(0, monthIndex(p.end) - monthIndex(p.start) + 1) : 0; }
+function currentMonthKey() { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0'); }
+function cleanAmounts(a) {
+  const out = {};
+  if (a && typeof a === 'object' && !Array.isArray(a)) Object.keys(a).forEach(k => { const v = Number(a[k]); if (Number.isFinite(v) && v >= 0) out[k] = v; });
+  return out;
+}
+function validPeriod(p) {
+  return !!p && typeof p === 'object' && validMonthKey(p.start) && validMonthKey(p.end) && monthIndex(p.end) >= monthIndex(p.start)
+    && !!p.amounts && typeof p.amounts === 'object' && !Array.isArray(p.amounts);
+}
+function savePeriod() {
+  try { localStorage.setItem('gestion_period_v1', JSON.stringify(PERIOD)); } catch (e) {}
+}
+function loadPeriod() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem('gestion_period_v1')); } catch (e) {}
+  if (validPeriod(saved)) { PERIOD = { start: saved.start, end: saved.end, amounts: cleanAmounts(saved.amounts) }; return; }
+  // Première utilisation : la période commence au plus ancien mois budgété et dure 12 mois ; on reprend le dernier budget mensuel défini
+  const keys = Object.keys(budgets).filter(validMonthKey).sort();
+  const start = keys.length ? keys[0] : currentMonthKey();
+  PERIOD = { start, end: addMonths(start, 11), amounts: cleanAmounts(keys.length ? budgets[keys[keys.length - 1]] : {}) };
+  savePeriod();
+}
+loadPeriod();
 
 // ===== SUPPORTS (compte bancaire, espèces, tickets restaurant...) =====
 // Couleur d'un support = une teinte (0-359) enregistrée avec le support. Palette proposée dans les réglages :
@@ -1324,7 +1362,12 @@ function fmtInt(n) { return n.toLocaleString('fr-FR',{minimumFractionDigits:0,ma
 function monthKey(y,m) { return y+'-'+(m<9?'0':'')+(m+1); }
 function getMonthTx() { const k=monthKey(viewYear,viewMonth); return transactions.filter(t=>t.date.startsWith(k)); }
 function getCatById(id) { return EXPENSE_CATS.find(c=>c.id===id)||INCOME_CATS.find(c=>c.id===id)||null; }
-function getBudgetForCat(catId) { const mk=monthKey(viewYear,viewMonth); return budgets[mk]&&budgets[mk][catId]!=null?budgets[mk][catId]:null; }
+// Budget mensuel d'une catégorie pour le mois affiché (null hors période ou sans budget)
+function getBudgetForCat(catId) {
+  const mk = monthKey(viewYear, viewMonth);
+  if (mk < PERIOD.start || mk > PERIOD.end) return null;
+  return PERIOD.amounts[catId] != null ? PERIOD.amounts[catId] : null;
+}
 function prevMonthKey(y,m) { let pm=m-1,py=y; if(pm<0){pm=11;py--;} return monthKey(py,pm); }
 
 function updateDisplays() {
@@ -1442,12 +1485,12 @@ function toggleBudgetEmpty(gi) {
 function renderBudgetPage(txs) {
   const el = document.getElementById('budget-page-content');
   const mk = monthKey(viewYear, viewMonth);
-  const hasBudget = budgets[mk] && Object.values(budgets[mk]).some(v=>v>=0);
-  const totalBudget = hasBudget ? Object.values(budgets[mk]).reduce((s,v)=>s+(v||0),0) : 0;
+  const hasBudget = mk >= PERIOD.start && mk <= PERIOD.end && Object.values(PERIOD.amounts).some(v => v >= 0);
+  const totalBudget = hasBudget ? Object.values(PERIOD.amounts).reduce((s, v) => s + (v || 0), 0) : 0;
   // Les dépenses payées depuis un livret (Exceptionnel) ne pèsent pas sur le budget : on ne compte que budgetAmount
   const spentEnv = spentByEnvelope(txs);
   let html = `<button class="edit-budget-btn" onclick="openBudgetModal()">
-    <i class="ti ti-edit"></i>${hasBudget?'Modifier le budget du mois':'Définir le budget du mois'}
+    <i class="ti ti-edit"></i>${hasBudget?'Modifier le budget de la période':'Définir le budget de la période'}
   </button>`;
 
   // Une carte par enveloppe : ce qu'il reste à dépenser, puis dépensé / budgété
@@ -1677,17 +1720,18 @@ function addTransaction() {
 }
 
 function openBudgetModal() {
-  const mk=monthKey(viewYear,viewMonth), pmk=prevMonthKey(viewYear,viewMonth);
-  const current=budgets[mk]||{}, prev=budgets[pmk];
-  document.getElementById('budget-modal-title').textContent='Budget – '+MONTHS[viewMonth]+' '+viewYear;
-  const bannerEl=document.getElementById('copy-banner-container');
-  if (prev&&Object.keys(prev).length>0&&Object.keys(current).length===0) {
-    bannerEl.innerHTML=`<div class="copy-banner" onclick="copyPrevBudget()">
-      <i class="ti ti-copy" style="font-size:16px;flex-shrink:0"></i>
-      <span>Reprendre le budget de ${MONTHS[viewMonth===0?11:viewMonth-1]} ${viewMonth===0?viewYear-1:viewYear}</span>
-    </div>`;
-  } else { bannerEl.innerHTML=''; }
-  renderBudgetEditor(current);
+  document.getElementById('budget-modal-title').textContent = 'Budget de la période';
+  const start = validMonthKey(PERIOD.start) ? PERIOD.start : currentMonthKey();
+  const end = validMonthKey(PERIOD.end) ? PERIOD.end : addMonths(start, 11);
+  document.getElementById('copy-banner-container').innerHTML = `<div class="form-group" style="margin-bottom:10px">
+      <label>Début de la période</label><input type="month" id="period-start" value="${start}" onchange="updateBudgetTotal()" />
+    </div>
+    <div class="form-group" style="margin-bottom:6px">
+      <label>Fin de la période</label><input type="month" id="period-end" value="${end}" onchange="updateBudgetTotal()" />
+    </div>
+    <p id="period-info" style="font-size:12px;color:var(--color-text-secondary);margin-bottom:14px;line-height:1.4"></p>
+    <p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:6px;line-height:1.4">Saisissez un montant par mois pour chaque catégorie : le budget de la période est ce montant multiplié par le nombre de mois.</p>`;
+  renderBudgetEditor(PERIOD.amounts);
   document.getElementById('budget-modal').classList.add('open');
 }
 
@@ -1708,25 +1752,32 @@ function renderBudgetEditor(current) {
   updateBudgetTotal();
 }
 
+// Nombre de mois entre les deux champs de la fenêtre (0 si la période n'est pas valide)
+function budgetFormMonths() {
+  const s = document.getElementById('period-start'), e = document.getElementById('period-end');
+  if (!s || !e || !validMonthKey(s.value) || !validMonthKey(e.value) || monthIndex(e.value) < monthIndex(s.value)) return 0;
+  return monthIndex(e.value) - monthIndex(s.value) + 1;
+}
 function updateBudgetTotal() {
   let total=0;
   document.querySelectorAll('.budget-row-input').forEach(inp=>{const v=parseFloat(inp.value);if(!isNaN(v))total+=v;});
+  const n = budgetFormMonths();
   document.getElementById('budget-editor-total').textContent=fmtInt(total);
-}
-
-function copyPrevBudget() {
-  const pmk=prevMonthKey(viewYear,viewMonth);
-  renderBudgetEditor(budgets[pmk]||{});
-  document.getElementById('copy-banner-container').innerHTML='';
+  document.getElementById('budget-editor-total-period').textContent=fmtInt(total * n);
+  const info = document.getElementById('period-info');
+  if (info) info.textContent = n ? n + ' mois' : 'Choisissez un début et une fin (la fin ne peut pas précéder le début).';
 }
 
 function saveBudget() {
-  const mk=monthKey(viewYear,viewMonth), newBudget={};
+  const start = document.getElementById('period-start').value, end = document.getElementById('period-end').value;
+  if (!budgetFormMonths()) { alert('Choisissez un mois de début et un mois de fin (la fin ne peut pas précéder le début).'); return; }
+  const amounts = {};
   document.querySelectorAll('.budget-row-input').forEach(inp=>{
     const v=parseFloat(inp.value);
-    newBudget[inp.dataset.cat]=!isNaN(v)&&v>0?v:0;
+    amounts[inp.dataset.cat]=!isNaN(v)&&v>0?v:0;
   });
-  budgets[mk]=newBudget; save(); closeBudgetModal(); updateDisplays();
+  PERIOD = { start, end, amounts };
+  savePeriod(); closeBudgetModal(); updateDisplays();
 }
 function closeBudgetModal() { document.getElementById('budget-modal').classList.remove('open'); }
 
@@ -2096,7 +2147,7 @@ function deleteCategory(id) {
   if (!confirm(msg)) return;
   EXPENSE_CATS = EXPENSE_CATS.filter(c => c.id !== id);
   INCOME_CATS = INCOME_CATS.filter(c => c.id !== id);
-  Object.values(budgets).forEach(b => { delete b[id]; });
+  delete PERIOD.amounts[id]; savePeriod();
   saveCategories(); save(); renderSettings(); updateDisplays();
 }
 
@@ -2399,10 +2450,11 @@ function renderSupportDetail() {
 function exportData() {
   const payload = {
     app: 'mon-budget',
-    version: 6,
+    version: 7,
     exportedAt: new Date().toISOString(),
     transactions: transactions,
-    budgets: budgets,
+    budgets: budgets,   // ancien format, gardé pour compatibilité
+    period: PERIOD,
     supports: SUPPORTS,
     categories: { groups: GROUPS, expense: EXPENSE_CATS, income: INCOME_CATS },
     envelopes: { groups: GROUP_ENV, targets: ENV_TARGETS }
@@ -2733,7 +2785,7 @@ function openResetModal() {
     + pocketsOf(sp).map(p => `<div style="margin-left:14px;font-size:13px;color:var(--color-text-secondary)">${esc(p.label)} : ${fmt(p.initial)}</div>`).join('') + '</div>').join('');
   document.getElementById('reset-modal-body').innerHTML =
     `<p style="line-height:1.5">${r.toDelete.length} transaction(s) seront supprimées. ${nbAdv} avance(s) en cours (rouge ou orange) sont conservées.</p>`
-    + `<p style="line-height:1.5;margin-top:8px">Budgets : tous les budgets sont effacés.</p>`
+    + `<p style="line-height:1.5;margin-top:8px">Budgets : tous les budgets sont effacés et une nouvelle période démarre ce mois-ci (à définir).</p>`
     + `<div class="section-title" style="margin-top:16px">Nouveaux soldes de départ</div>${lines}`
     + (r.problems.length ? `<p style="margin-top:16px;color:var(--color-text-danger);line-height:1.5">Impossible : des transactions du livret « ${esc(r.problems.join(', '))} » n'ont pas de poche. Modifiez-les d'abord.</p>` : '')
     + `<p style="margin:16px 0 8px;line-height:1.5">Avant de continuer, fais ton export Google Sheets, puis la sauvegarde ci-dessous.</p>`;
@@ -2757,6 +2809,8 @@ function applyReset() {
   SUPPORTS = r.next; saveSupports();
   transactions = r.kept;
   budgets = {};
+  const m0 = currentMonthKey();   // nouvelle période : elle démarre ce mois-ci, sans budget
+  PERIOD = { start: m0, end: addMonths(m0, 11), amounts: {} }; savePeriod();
   selectedIds = new Set(); selectMode = false;
   save();
   closeResetModal();
@@ -2809,6 +2863,9 @@ function importData(file) {
     try {
       localStorage.setItem('gestion_tx_v4', JSON.stringify(d.transactions));
       localStorage.setItem('gestion_budgets_v4', JSON.stringify(d.budgets));
+      // Période budgétaire : sauvegardes d'avant sa création = pas de clé, elle est déduite des anciens budgets au chargement
+      if (validPeriod(d.period)) localStorage.setItem('gestion_period_v1', JSON.stringify({ start: d.period.start, end: d.period.end, amounts: cleanAmounts(d.period.amounts) }));
+      else localStorage.removeItem('gestion_period_v1');
       localStorage.setItem('gestion_supports_v1', JSON.stringify(sup));
       localStorage.setItem('gestion_cats_v1', JSON.stringify({ groups: c.groups, expense: c.expense, income: c.income }));
       // Enveloppes : sauvegardes d'avant leur création = pas de clé, elles sont déduites des groupes au chargement
@@ -2828,7 +2885,8 @@ function resetCategories() {
   GROUP_ENV = {};
   GROUPS.forEach(g => { GROUP_ENV[g] = DEFAULT_GROUP_ENVELOPE[g] || 'courant'; });
   const valid = new Set(EXPENSE_CATS.map(c => c.id));
-  Object.values(budgets).forEach(b => Object.keys(b).forEach(k => { if (!valid.has(k)) delete b[k]; }));
+  Object.keys(PERIOD.amounts).forEach(k => { if (!valid.has(k)) delete PERIOD.amounts[k]; });
+  savePeriod();
   saveCategories(); saveEnvelopes(); save(); renderSettings(); updateDisplays();
 }
 
