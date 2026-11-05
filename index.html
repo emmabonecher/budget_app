@@ -3066,21 +3066,29 @@ function renderAnalyse() {
   const GREEN = 'var(--color-text-success)', ORANGE = 'var(--color-text-warning, #c77700)', RED = 'var(--color-text-danger)';
   const BARG = '#1D9E75', BARO = '#EF9F27', BARR = '#E24B4A';
   // Barre avec un trait de repère ; l'échelle laisse un peu de place après la plus grande valeur
-  const bar = (value, mark, scale, color) => {
-    const w = scale > 0 ? Math.max(0, Math.min(100, value / scale * 100)) : 0, m = scale > 0 ? Math.max(0, Math.min(100, mark / scale * 100)) : 0;
+  const pc = (v, scale) => scale > 0 ? Math.max(0, Math.min(100, v / scale * 100)) : 0;
+  const bar = (value, mark, scale, color, mark2) => {
+    const tick = mark === null ? '' : `<div style="position:absolute;top:-3px;bottom:-3px;left:calc(${pc(mark, scale)}% - 1px);width:2px;background:var(--color-text-primary);border-radius:1px"></div>`;
+    const tick2 = mark2 === undefined ? '' : `<div style="position:absolute;top:-3px;bottom:-3px;left:calc(${pc(mark2, scale)}% - 1px);border-left:2px dashed var(--color-text-primary)"></div>`;
     return `<div style="position:relative;height:8px;background:var(--color-background-secondary);border-radius:4px;margin:8px 0 6px">
-      <div style="width:${w}%;height:100%;background:${color};border-radius:4px"></div>
-      <div style="position:absolute;top:-3px;bottom:-3px;left:${m}%;width:2px;background:var(--color-text-primary);border-radius:1px"></div></div>`;
+      <div style="width:${pc(value, scale)}%;height:100%;background:${color};border-radius:4px"></div>${tick}${tick2}</div>`;
   };
 
   let headHtml;
   if (st) {
     const left = st.N - st.k + 1;
-    // Mois : dépensé / budget du mois, marge, barre avec le trait au budget du mois
-    const mColor = st.status === 'r' ? RED : st.month > st.budgetMois ? ORANGE : GREEN;
-    const mBar = st.status === 'r' ? BARR : st.month > st.budgetMois ? BARO : BARG;
-    const mScale = Math.max(st.month, st.budgetMois) * 1.13;
-    const margeTxt = st.marge >= 0 ? `marge <strong style="color:${GREEN}">${fmtInt(st.marge)}</strong>` : `<strong style="color:${RED}">au-delà de la marge de ${fmtInt(-st.marge)}</strong>`;
+    // Mois : 3 cas. Marge disponible avant ce mois = budgété à ce jour − dépensé avant (jamais sous le budget du mois)
+    const limit = Math.max(st.budgetMois, round2(st.k * st.B - st.prev));
+    let mColor, mBar, mScale, mTick, mTick2, mRight = '';
+    if (st.status !== 'r' && st.month <= st.budgetMois) {            // dans le budget : vert, pas de marge
+      mColor = GREEN; mBar = BARG; mScale = st.budgetMois; mTick = null;
+    } else if (st.status !== 'r' && st.month <= limit) {             // on grignote la marge : orange
+      mColor = ORANGE; mBar = BARO; mScale = limit; mTick = st.budgetMois;
+      mRight = `marge <strong style="color:${ORANGE}">${fmtInt(round2(limit - st.month))}</strong>`;
+    } else {                                                          // au-delà de la marge : tout en rouge
+      mColor = RED; mBar = BARR; mScale = st.month; mTick = st.budgetMois; mTick2 = limit > st.budgetMois ? limit : undefined;
+      mRight = limit > st.budgetMois ? `<strong style="color:${RED}">au-delà de la marge de ${fmtInt(round2(st.month - limit))}</strong>` : '';
+    }
     // Période : dépensé / budgété à ce jour, reste, barre avec le trait au budgété à ce jour
     const toDate = round2(st.k * st.B), full = round2(st.N * st.B), restP = round2(full - st.total);
     const pColor = st.total > full ? RED : st.total > toDate ? ORANGE : GREEN;
@@ -3089,16 +3097,15 @@ function renderAnalyse() {
       <div class="det-sec"><b>${MONTHS[viewMonth]}</b><span>reste ${left} mois dont celui-ci</span></div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
         <span><span style="font-size:26px;font-weight:500;color:${mColor}">${fmtInt(st.month)}</span> <span style="font-size:14px;color:var(--color-text-secondary)">/ ${fmtInt(st.budgetMois)}</span></span>
-        <span style="font-size:13px">${margeTxt}</span></div>
-      ${bar(st.month, st.budgetMois, mScale, mBar)}
-      <div class="det-note">dépensé ${fmtInt(st.month)} · budget du mois ${fmtInt(st.budgetMois)}</div>
+        <span style="font-size:13px">${mRight}</span></div>
+      ${bar(st.month, mTick, mScale, mBar, mTick2)}
       <hr style="border:none;border-top:0.5px solid var(--color-border-tertiary);margin:14px 0 0">
       <div class="det-sec"><b>Période</b><span>${frMonth(PERIOD.start)} – ${frMonth(PERIOD.end)}</span></div>
       <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
         <span><span style="font-size:26px;font-weight:500;color:${pColor}">${fmtInt(st.total)}</span> <span style="font-size:14px;color:var(--color-text-secondary)">/ ${fmtInt(toDate)} budgétés</span></span>
         <span style="font-size:13px">${restP >= 0 ? `reste <strong>${fmtInt(restP)}</strong>` : `<strong style="color:${RED}">dépassé de ${fmtInt(-restP)}</strong>`}</span></div>
       ${bar(st.total, toDate, Math.max(st.total, full) , pBar)}
-      <div class="det-note">budget de la période ${fmtInt(full)} · le trait = budgété à ce jour</div>`;
+`;
   } else {
     // Hors période ou sans budget : simple total du mois
     headHtml = `<div class="det-sec"><b>${MONTHS[viewMonth]}</b><span>${getBudgetForCat(analyseCatId) === null ? 'sans budget' : ''}</span></div>
