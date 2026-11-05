@@ -443,6 +443,9 @@ body { background: #f0f0f0; }
       <label>Poche cible</label>
       <select id="tx-pocket-to"></select>
     </div>
+    <div class="form-group" id="grp-annual" style="display:none">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="tx-annual" style="width:auto;margin:0" /> Paiement annuel (hors budget du mois)</label>
+    </div>
     <div class="form-group" id="grp-advance" style="display:none">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="tx-advance" style="width:auto;margin:0" /> Avance</label>
     </div>
@@ -539,6 +542,9 @@ body { background: #f0f0f0; }
     <div class="form-group" id="edit-grp-pocket-to" style="display:none">
       <label>Poche cible</label>
       <select id="edit-tx-pocket-to"></select>
+    </div>
+    <div class="form-group" id="edit-grp-annual" style="display:none">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="edit-tx-annual" style="width:auto;margin:0" /> Paiement annuel (hors budget du mois)</label>
     </div>
     <div class="form-group" id="edit-grp-advance" style="display:none">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="edit-tx-advance" style="width:auto;margin:0" /> Avance (à rembourser au livret)</label>
@@ -1006,7 +1012,7 @@ function computeSynthese(txs) {
     });
   });
 
-  const bC = envelopeBudget('courant') || 0, bV = envelopeBudget('vacances') || 0;
+  const bC = envelopeBudgetMois('courant'), bV = envelopeBudgetMois('vacances');   // budget du mois de chaque catégorie
   const theo = {
     courant:  round2(bC - spent.courant),
     vacances: round2(bV - spent.vacances),
@@ -1352,6 +1358,9 @@ function updateAdvanceVisibility(p) {
   const show = type === 'transfer' && !!(sp && sp.savings);
   document.getElementById(p + 'grp-advance').style.display = show ? 'block' : 'none';
   if (!show) document.getElementById(p + 'tx-advance').checked = false;
+  // « Paiement annuel » : uniquement pour une dépense
+  document.getElementById(p + 'grp-annual').style.display = type === 'expense' ? 'block' : 'none';
+  if (type !== 'expense') document.getElementById(p + 'tx-annual').checked = false;
 }
 function onSupportPick(p, side) {
   const q = id => document.getElementById(p + id);
@@ -1440,6 +1449,7 @@ function renderList(el, txs, withActions, ctx) {
     let catLabel=cat?(cat.group?cat.group+' · '+cat.label:cat.label):'Catégorie supprimée';
     let name=esc(t.desc), badges=(Array.isArray(t.splits) ? t.splits.map(x => supportBadge(x.support, x.pocket)).join(' ') : supportBadge(t.support, t.pocket)), amountHtml;
     if (!name && t.type==='income') name='Recette';
+    if (t.annual) name += ' <span class="bgt-rest muted" style="margin-left:4px">annuel</span>';
     if (t.type==='transfer') {
       icon='ti-arrows-exchange'; bg='#E6F1FB'; catLabel=''; name=t.desc ? esc(t.desc) : 'Transfert';
       badges=supportBadge(t.from, t.fromPocket)+' <i class="ti ti-arrow-right" style="font-size:11px"></i> '+supportBadge(t.to, t.toPocket);
@@ -1494,24 +1504,51 @@ function toggleBudgetEmpty(gi) {
 //  Budget d'un mois = min(B, (N×B − dépensé avant) / (N − k + 1)) : un dépassement est réparti à parts égales sur les mois restants.
 //  « Dépensé avant » = dépenses réelles jusqu'au mois en cours ; pour les mois futurs au-delà, on suppose que le budget du mois est consommé exactement.
 //  Marge = k×B − dépensé à ce jour.
-function periodStats(catId, perMonth, mk, today) {
+// Dépensé par catégorie et par mois (hors parts payées depuis un livret) : all = tout, annual = dont paiements annuels
+function catSpendMaps() {
+  const all = {}, annual = {};
+  transactions.forEach(t => {
+    if (t.type !== 'expense') return;
+    const a = budgetAmount(t);
+    if (!a) return;
+    const m = t.date.slice(0, 7);
+    (all[t.cat] = all[t.cat] || {})[m] = round2(((all[t.cat] || {})[m] || 0) + a);
+    if (t.annual) (annual[t.cat] = annual[t.cat] || {})[m] = round2(((annual[t.cat] || {})[m] || 0) + a);
+  });
+  return { all, annual };
+}
+// Budget des enveloppes pour le mois affiché, avec le budget du mois de chaque catégorie (synthèse)
+function envelopeBudgetMois(envId) {
+  const maps = catSpendMaps(), mk = monthKey(viewYear, viewMonth);
+  let total = 0;
+  EXPENSE_CATS.forEach(c => {
+    if (envelopeOfGroup(c.group) !== envId) return;
+    const st = periodStats(c.id, maps.all[c.id] || {}, mk, null, maps.annual[c.id] || {});
+    if (st) total += st.budgetMois;
+  });
+  return round2(total);
+}
+function periodStats(catId, perMonth, mk, today, annualPerMonth) {
   const B = getBudgetForCat(catId);
   if (B === null) return null;
   today = today || currentMonthKey();
   const N = periodMonths(), k = monthIndex(mk) - monthIndex(PERIOD.start) + 1;
   const budgetAt = (j, prev) => round2(Math.max(0, Math.min(B, (N * B - prev) / (N - j + 1))));
-  let prev = 0;
+  let prev = 0, prevReal = 0;   // prev sert au calcul du budget (avec hypothèse), prevReal = dépensé réel affiché
   for (let j = 1; j < k; j++) {
-    const m = addMonths(PERIOD.start, j - 1);
-    prev = round2(prev + (m <= today ? (perMonth[m] || 0) : budgetAt(j, prev)));
+    const m = addMonths(PERIOD.start, j - 1), real = perMonth[m] || 0;
+    prev = round2(prev + (m <= today ? real : budgetAt(j, prev)));
+    prevReal = round2(prevReal + real);
   }
-  const month = round2(perMonth[mk] || 0), total = round2(prev + month);
+  // Le paiement annuel compte dans la période (total, budgets suivants) mais pas dans les chiffres du mois
+  const monthAll = round2(perMonth[mk] || 0), annualMonth = round2((annualPerMonth || {})[mk] || 0);
+  const month = round2(monthAll - annualMonth), total = round2(prevReal + monthAll);
   const budgetMois = budgetAt(k, prev);
   const marge = round2(k * B - total);
   let status = 'g';
   if (total > round2(N * B)) status = 'r';
   else if (month > budgetMois && marge < 0) status = 'o';
-  return { B, N, k, prev, month, total, budgetMois, marge, status, over: round2(total - N * B) };
+  return { B, N, k, prev, prevReal, month, annualMonth, total, budgetMois, marge, status, over: round2(total - N * B) };
 }
 
 function renderBudgetPage(txs) {
@@ -1522,18 +1559,11 @@ function renderBudgetPage(txs) {
   const ABBR = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
   const frMonth = k => ABBR[+k.slice(5, 7) - 1] + ' ' + k.slice(0, 4);
   const periodTxt = validPeriod(PERIOD) ? frMonth(PERIOD.start) + ' – ' + frMonth(PERIOD.end) : '';
-  // Dépensé par catégorie et par mois (hors parts payées depuis un livret), sur toute la période
-  const perCat = {};
-  transactions.forEach(t => {
-    if (t.type !== 'expense') return;
-    const a = budgetAmount(t);
-    if (!a) return;
-    const m = t.date.slice(0, 7);
-    (perCat[t.cat] = perCat[t.cat] || {})[m] = round2(((perCat[t.cat] || {})[m] || 0) + a);
-  });
+  const maps = catSpendMaps(), perCat = maps.all;
   const stats = {};
-  EXPENSE_CATS.forEach(c => { stats[c.id] = periodStats(c.id, perCat[c.id] || {}, mk); });
-  const spentEnv = spentByEnvelope(txs);
+  EXPENSE_CATS.forEach(c => { stats[c.id] = periodStats(c.id, perCat[c.id] || {}, mk, null, maps.annual[c.id] || {}); });
+  const spentEnv = spentByEnvelope(txs.filter(t => !t.annual));   // les paiements annuels sont hors du mois
+  const spentEnvAll = spentByEnvelope(txs);
 
   let html = '';
   if (validPeriod(PERIOD)) {
@@ -1550,7 +1580,7 @@ function renderBudgetPage(txs) {
     EXPENSE_CATS.forEach(c => {
       const st = stats[c.id];
       if (!st) return;
-      if (envelopeOfGroup(c.group) === 'courant') bC += st.budgetMois;
+      if (envelopeOfGroup(c.group) === 'courant') { if (!st.annualMonth) bC += st.budgetMois; }   // catégorie à paiement annuel ce mois-ci : hors boîte
       else if (envelopeOfGroup(c.group) === 'vacances') { bV += st.N * st.B; sV += st.total; }
     });
     const restC = round2(bC - spentEnv.courant), restV = round2(bV - sV);
@@ -1563,7 +1593,7 @@ function renderBudgetPage(txs) {
   GROUPS.forEach((g, gi) => {
     const groupCats = EXPENSE_CATS.filter(c => c.group === g);
     if (!groupCats.length) return;
-    const rows = groupCats.map(cat => ({ cat, st: stats[cat.id], spent: round2((perCat[cat.id] || {})[mk] || 0) }));
+    const rows = groupCats.map(cat => ({ cat, st: stats[cat.id], spent: round2(((perCat[cat.id] || {})[mk] || 0) - ((maps.annual[cat.id] || {})[mk] || 0)) }));
     const isActive = r => r.spent !== 0 || (r.st && r.st.B !== 0);
     const active = rows.filter(isActive), idle = rows.filter(r => !isActive(r));
     const colour = { g: 'var(--color-text-success)', o: 'var(--color-text-warning, #c77700)', r: 'var(--color-text-danger)' };
@@ -1601,7 +1631,7 @@ function renderBudgetPage(txs) {
         <div class="bgt-row-right"><div class="bgt-row-amt">${fmtAuto(amount)}</div></div></div>`;
     }).join('');
     html += `<div class="bgt-group">
-      <div class="bgt-group-head"><span class="bgt-group-name">Exceptionnel<em>hors budget</em></span><span class="bgt-group-amt"><strong>${fmtAuto(spentEnv.exceptionnel)}</strong></span></div>
+      <div class="bgt-group-head"><span class="bgt-group-name">Exceptionnel<em>hors budget</em></span><span class="bgt-group-amt"><strong>${fmtAuto(spentEnvAll.exceptionnel)}</strong></span></div>
       ${excRows}
     </div>`;
   }
@@ -1666,6 +1696,7 @@ function openModal() {
   document.getElementById('tx-date').value=todayStr();
   document.getElementById('tx-desc').value='';
   document.getElementById('tx-amount').value='';
+  document.getElementById('tx-annual').checked=false;
   setType('expense');
   document.getElementById('modal').classList.add('open');
 }
@@ -1754,6 +1785,7 @@ function addTransaction() {
     if(parts){ tx.splits=parts; collapseSplits(tx); }
     else if(pocket) tx.pocket=pocket;
     if(txType==='expense') tx.cat=selectedCatId;
+    if(txType==='expense'&&document.getElementById('tx-annual').checked) tx.annual=true;
     txParts(tx).forEach(x => { lastSupportId=x.support; lastPocketBySupport[x.support]=x.pocket||''; });
   }
   transactions.push(tx); save(); closeModal(); updateDisplays();
@@ -1900,6 +1932,7 @@ function startEditTransaction() {
   }
   applyTypeUI('edit-', t.type);
   document.getElementById('edit-tx-advance').checked = !!t.advance;
+  document.getElementById('edit-tx-annual').checked = !!t.annual;
   updateAdvanceVisibility('edit-');
   document.getElementById('edit-modal').classList.add('open');
 }
@@ -1975,6 +2008,7 @@ function saveEditTransaction() {
     if (parts) { nt.splits = parts; collapseSplits(nt); }
     else if (pocket) nt.pocket = pocket;
     if (editTxType === 'expense') nt.cat = editSelectedCatId;
+    if (editTxType === 'expense' && document.getElementById('edit-tx-annual').checked) nt.annual = true;
     else if (old.type === 'income' && old.cat) nt.cat = old.cat;   // on garde l'ancienne catégorie d'une recette existante
   }
   transactions[idx] = nt;
@@ -3060,12 +3094,12 @@ function renderAnalyse() {
   const monthTx = m => catTx.filter(t => t.date.startsWith(m)).sort(sortTx);
   const spentOf = list => round2(list.reduce((s, t) => s + budgetAmount(t), 0));
   const excOf = list => round2(list.reduce((s, t) => s + exceptionalAmount(t), 0));
-  const txs = monthTx(mk), spent = spentOf(txs), exceptional = excOf(txs);
+  const txs = monthTx(mk), spent = round2(spentOf(txs) - spentOf(txs.filter(t => t.annual))), exceptional = excOf(txs);
+  const annualMonth = spentOf(txs.filter(t => t.annual));
 
   // Dépensé par mois (hors livrets) pour les calculs de période
-  const perMonth = {};
-  catTx.forEach(t => { const m = t.date.slice(0, 7), a = budgetAmount(t); if (a) perMonth[m] = round2((perMonth[m] || 0) + a); });
-  const st = periodStats(analyseCatId, perMonth, mk);
+  const maps = catSpendMaps(), perMonth = maps.all[analyseCatId] || {};
+  const st = periodStats(analyseCatId, perMonth, mk, null, maps.annual[analyseCatId] || {});
 
   const ABBR = ['janv.','févr.','mars','avr.','mai','juin','juil.','août','sept.','oct.','nov.','déc.'];
   const frMonth = k => ABBR[+k.slice(5, 7) - 1] + ' ' + k.slice(0, 4);
@@ -3117,6 +3151,7 @@ function renderAnalyse() {
     headHtml = `<div class="det-sec"><b>${MONTHS[viewMonth]}</b><span>${getBudgetForCat(analyseCatId) === null ? 'sans budget' : ''}</span></div>
       <div><span style="font-size:26px;font-weight:500">${fmtInt(spent)}</span> <span style="font-size:14px;color:var(--color-text-secondary)">dépensé</span></div>`;
   }
+  const annHtml = annualMonth !== 0 ? `<div class="det-note">Paiement annuel (hors budget du mois, compté dans la période) : ${fmt(annualMonth)}</div>` : '';
   const excHtml = exceptional !== 0 ? `<div class="det-note">Exceptionnel (payé depuis un livret, hors budget) : ${fmt(exceptional)}</div>` : '';
 
   // Transactions du mois affiché uniquement
@@ -3136,7 +3171,7 @@ function renderAnalyse() {
           <div class="analyse-sub">${cat.group ? esc(cat.group) + ' · ' + esc((getEnvelopeById(envelopeOfGroup(cat.group)) || {}).label || '') : ''}</div>
         </div>
       </div>
-      ${headHtml}${excHtml}
+      ${headHtml}${annHtml}${excHtml}
     </div>
     ${listHtml}`;
   renderList(document.getElementById('analyse-list'), txs, true);
