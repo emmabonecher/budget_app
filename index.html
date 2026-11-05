@@ -1490,17 +1490,23 @@ function toggleBudgetEmpty(gi) {
 }
 
 // Calculs d'une catégorie pour le mois affiché, dans la période budgétaire (null hors période ou sans montant mensuel)
-//  B = montant mensuel, N = mois de la période, k = rang du mois affiché,
-//  budget du mois = min(B, (N×B − dépensé avant) / (N − k + 1)), marge = k×B − dépensé à ce jour.
-function periodStats(catId, perMonth, mk) {
+//  B = montant mensuel, N = mois de la période, k = rang du mois affiché.
+//  Budget d'un mois = min(B, (N×B − dépensé avant) / (N − k + 1)) : un dépassement est réparti à parts égales sur les mois restants.
+//  « Dépensé avant » = dépenses réelles jusqu'au mois en cours ; pour les mois futurs au-delà, on suppose que le budget du mois est consommé exactement.
+//  Marge = k×B − dépensé à ce jour.
+function periodStats(catId, perMonth, mk, today) {
   const B = getBudgetForCat(catId);
   if (B === null) return null;
+  today = today || currentMonthKey();
   const N = periodMonths(), k = monthIndex(mk) - monthIndex(PERIOD.start) + 1;
+  const budgetAt = (j, prev) => round2(Math.max(0, Math.min(B, (N * B - prev) / (N - j + 1))));
   let prev = 0;
-  Object.keys(perMonth).forEach(m => { if (m >= PERIOD.start && m < mk) prev += perMonth[m]; });
-  prev = round2(prev);
+  for (let j = 1; j < k; j++) {
+    const m = addMonths(PERIOD.start, j - 1);
+    prev = round2(prev + (m <= today ? (perMonth[m] || 0) : budgetAt(j, prev)));
+  }
   const month = round2(perMonth[mk] || 0), total = round2(prev + month);
-  const budgetMois = round2(Math.max(0, Math.min(B, (N * B - prev) / (N - k + 1))));
+  const budgetMois = budgetAt(k, prev);
   const marge = round2(k * B - total);
   let status = 'g';
   if (total > round2(N * B)) status = 'r';
