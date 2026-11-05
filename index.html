@@ -1540,9 +1540,9 @@ function periodStats(catId, perMonth, mk, today, annualPerMonth) {
     prev = round2(prev + (m <= today ? real : budgetAt(j, prev)));
     prevReal = round2(prevReal + real);
   }
-  // Le paiement annuel compte dans la période (total, budgets suivants) mais pas dans les chiffres du mois
+  // Les chiffres affichés sont réels ; le paiement annuel n'est mis à part que dans la boîte Courant (annualMonth)
   const monthAll = round2(perMonth[mk] || 0), annualMonth = round2((annualPerMonth || {})[mk] || 0);
-  const month = round2(monthAll - annualMonth), total = round2(prevReal + monthAll);
+  const month = monthAll, total = round2(prevReal + monthAll);
   const budgetMois = budgetAt(k, prev);
   const marge = round2(k * B - total);
   let status = 'g';
@@ -1562,8 +1562,8 @@ function renderBudgetPage(txs) {
   const maps = catSpendMaps(), perCat = maps.all;
   const stats = {};
   EXPENSE_CATS.forEach(c => { stats[c.id] = periodStats(c.id, perCat[c.id] || {}, mk, null, maps.annual[c.id] || {}); });
-  const spentEnv = spentByEnvelope(txs.filter(t => !t.annual));   // les paiements annuels sont hors du mois
-  const spentEnvAll = spentByEnvelope(txs);
+  const spentEnv = spentByEnvelope(txs);
+  const spentEnvAll = spentEnv;
 
   let html = '';
   if (validPeriod(PERIOD)) {
@@ -1576,14 +1576,19 @@ function renderBudgetPage(txs) {
 
   if (hasBudget) {
     // Courant : budgets du mois − tout ce qui est dépensé ce mois-ci (les dépassements comptent, les marges non)
-    let bC = 0, bV = 0, sV = 0;
+    let bC = 0, bV = 0, sV = 0, cutC = 0;
     EXPENSE_CATS.forEach(c => {
       const st = stats[c.id];
       if (!st) return;
-      if (envelopeOfGroup(c.group) === 'courant') { if (!st.annualMonth) bC += st.budgetMois; }   // catégorie à paiement annuel ce mois-ci : hors boîte
+      if (envelopeOfGroup(c.group) === 'courant') {
+        bC += st.budgetMois;
+        // Paiement annuel : ce qui dépasse le budget du mois (hors autres dépenses) n'entame pas le reste de la boîte
+        const nonAnnual = round2(st.month - st.annualMonth);
+        if (st.annualMonth) cutC += Math.max(0, round2(st.month - Math.max(st.budgetMois, nonAnnual)));
+      }
       else if (envelopeOfGroup(c.group) === 'vacances') { bV += st.N * st.B; sV += st.total; }
     });
-    const restC = round2(bC - spentEnv.courant), restV = round2(bV - sV);
+    const restC = round2(bC - (spentEnv.courant - cutC)), restV = round2(bV - sV);
     const box = (label, rest, foot) => `<div class="env-tile"><div class="env-tile-label">${label}</div><div class="env-tile-hint" style="margin-top:6px">${rest < 0 ? 'dépassé' : 'reste'}</div><div class="env-tile-rest ${rest < 0 ? 'neg' : 'pos'}" style="margin-top:0">${fmtAuto(Math.abs(rest))}</div><div class="env-tile-hint">${foot}</div></div>`;
     const hasV = EXPENSE_CATS.some(c => stats[c.id] && envelopeOfGroup(c.group) === 'vacances');
     html += `<div class="env-tiles" style="margin-top:6px">${box('Courant', restC, 'pour ' + MONTHS[viewMonth].toLowerCase())}${hasV ? box('Vacances', restV, 'pour la période') : ''}</div>`;
@@ -1593,7 +1598,7 @@ function renderBudgetPage(txs) {
   GROUPS.forEach((g, gi) => {
     const groupCats = EXPENSE_CATS.filter(c => c.group === g);
     if (!groupCats.length) return;
-    const rows = groupCats.map(cat => ({ cat, st: stats[cat.id], spent: round2(((perCat[cat.id] || {})[mk] || 0) - ((maps.annual[cat.id] || {})[mk] || 0)) }));
+    const rows = groupCats.map(cat => ({ cat, st: stats[cat.id], spent: round2((perCat[cat.id] || {})[mk] || 0) }));
     const isActive = r => r.spent !== 0 || (r.st && r.st.B !== 0);
     const active = rows.filter(isActive), idle = rows.filter(r => !isActive(r));
     const colour = { g: 'var(--color-text-success)', o: 'var(--color-text-warning, #c77700)', r: 'var(--color-text-danger)' };
@@ -3094,8 +3099,7 @@ function renderAnalyse() {
   const monthTx = m => catTx.filter(t => t.date.startsWith(m)).sort(sortTx);
   const spentOf = list => round2(list.reduce((s, t) => s + budgetAmount(t), 0));
   const excOf = list => round2(list.reduce((s, t) => s + exceptionalAmount(t), 0));
-  const txs = monthTx(mk), spent = round2(spentOf(txs) - spentOf(txs.filter(t => t.annual))), exceptional = excOf(txs);
-  const annualMonth = spentOf(txs.filter(t => t.annual));
+  const txs = monthTx(mk), spent = spentOf(txs), exceptional = excOf(txs);
 
   // Dépensé par mois (hors livrets) pour les calculs de période
   const maps = catSpendMaps(), perMonth = maps.all[analyseCatId] || {};
@@ -3151,7 +3155,6 @@ function renderAnalyse() {
     headHtml = `<div class="det-sec"><b>${MONTHS[viewMonth]}</b><span>${getBudgetForCat(analyseCatId) === null ? 'sans budget' : ''}</span></div>
       <div><span style="font-size:26px;font-weight:500">${fmtInt(spent)}</span> <span style="font-size:14px;color:var(--color-text-secondary)">dépensé</span></div>`;
   }
-  const annHtml = annualMonth !== 0 ? `<div class="det-note">Paiement annuel (hors budget du mois, compté dans la période) : ${fmt(annualMonth)}</div>` : '';
   const excHtml = exceptional !== 0 ? `<div class="det-note">Exceptionnel (payé depuis un livret, hors budget) : ${fmt(exceptional)}</div>` : '';
 
   // Transactions du mois affiché uniquement
@@ -3171,7 +3174,7 @@ function renderAnalyse() {
           <div class="analyse-sub">${cat.group ? esc(cat.group) + ' · ' + esc((getEnvelopeById(envelopeOfGroup(cat.group)) || {}).label || '') : ''}</div>
         </div>
       </div>
-      ${headHtml}${annHtml}${excHtml}
+      ${headHtml}${excHtml}
     </div>
     ${listHtml}`;
   renderList(document.getElementById('analyse-list'), txs, true);
