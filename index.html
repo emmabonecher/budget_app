@@ -173,10 +173,6 @@ body { background: #f0f0f0; }
 .select-bar { display: none; background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 8px 12px; margin-bottom: 10px; align-items: center; justify-content: space-between; }
 .select-bar.visible { display: flex; }
 .tx-right{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
-.adv-dot{display:block;width:12px;height:12px;border-radius:50%;cursor:pointer;box-shadow:0 0 0 5px transparent}
-.adv-dot.open{background:#E24B4A}
-.adv-dot.partial{background:#F29D38}
-.adv-dot.done{background:#3FA55B}
 /* Merged main page layout */
 .summary-sticky { background: var(--color-background-primary); padding: 16px 16px 12px; position: sticky; top: 97px; z-index: 7; transition: transform 0.25s ease, opacity 0.25s ease; }
 .summary-sticky.hidden { transform: translateY(-20px); opacity: 0; pointer-events: none; }
@@ -446,9 +442,6 @@ body { background: #f0f0f0; }
     <div class="form-group" id="grp-annual" style="display:none">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="tx-annual" style="width:auto;margin:0" /> Paiement annuel (hors budget du mois)</label>
     </div>
-    <div class="form-group" id="grp-advance" style="display:none">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="tx-advance" style="width:auto;margin:0" /> Avance</label>
-    </div>
     <div class="form-group">
       <label>Date</label>
       <input type="date" id="tx-date" />
@@ -545,9 +538,6 @@ body { background: #f0f0f0; }
     </div>
     <div class="form-group" id="edit-grp-annual" style="display:none">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="edit-tx-annual" style="width:auto;margin:0" /> Paiement annuel (hors budget du mois)</label>
-    </div>
-    <div class="form-group" id="edit-grp-advance" style="display:none">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="edit-tx-advance" style="width:auto;margin:0" /> Avance (à rembourser au livret)</label>
     </div>
     <div class="form-group">
       <label>Date</label>
@@ -839,6 +829,7 @@ function migrateTxList(list, supports) {
   const pocketOk = (supId, pocketId) => typeof pocketId === 'string' && !!getPocket(byId.get(supId), pocketId);
   let changed = false;
   list.forEach(t => {
+    if ('advance' in t) { delete t.advance; changed = true; }   // les avances n'existent plus : ce sont de simples transferts
     // Anciennes données : « env », « fromEnv » et « toEnv » deviennent « pocket », « fromPocket » et « toPocket »
     if ('env' in t) { if (t.pocket === undefined) t.pocket = t.env; delete t.env; changed = true; }
     if ('fromEnv' in t) { if (t.fromPocket === undefined) t.fromPocket = t.fromEnv; delete t.fromEnv; changed = true; }
@@ -978,18 +969,13 @@ function computeSynthese(txs) {
   const tgC = ENV_TARGETS.courant || null, tgV = ENV_TARGETS.vacances || null;
   const spent = { courant: 0, vacances: 0 };
   const done = { courant: 0, vacances: 0, livret: 0 };
-  let H = 0, R = 0, T = 0, compteDelta = 0, advFlow = 0;
+  let H = 0, R = 0, T = 0, compteDelta = 0;
 
   txs.forEach(t => {
     if (t.type === 'transfer') {
       const out = t.from === cid, inn = t.to === cid;
       if (out) compteDelta -= t.amount;
       if (inn) compteDelta += t.amount;
-      if (t.advance) {                       // avances : à part, hors des trois calculs
-        if (out) advFlow -= t.amount;
-        if (inn) advFlow += t.amount;
-        return;
-      }
       if (out === inn) return;               // ne touche pas le compte
       const other = out ? t.to : t.from, otherPocket = out ? t.toPocket : t.fromPocket;
       const sign = out ? 1 : -1;             // sortie du compte = +, entrée = −
@@ -1027,8 +1013,8 @@ function computeSynthese(txs) {
   return {
     theo, rest, sumRest,
     done: { courant: round2(done.courant), vacances: round2(done.vacances), livret: round2(done.livret) },
-    compteDelta: round2(compteDelta), advFlow: round2(advFlow),
-    gap: round2(compteDelta - sumRest - advFlow),
+    compteDelta: round2(compteDelta),
+    gap: round2(compteDelta - sumRest),
     bC, bV, spentC: round2(spent.courant), spentV: round2(spent.vacances),
     H: round2(H), R: round2(R), T: round2(T)
   };
@@ -1109,25 +1095,12 @@ function renderSynthese() {
     <div><span>Écart</span><span class="${Math.abs(s.gap) < 0.005 ? 'ok' : 'ko'}">${Math.abs(s.gap) < 0.005 ? '0,00 € ✓' : sgn(s.gap)}</span></div>
   </div>`;
 
-  // Boîte « Avances en cours » : tous mois confondus, séparée des calculs ci-dessus
-  const adv = transactions.filter(t => t.type === 'transfer' && (t.advance === 'open' || t.advance === 'partial'))
-    .sort((a, b) => b.date !== a.date ? b.date.localeCompare(a.date) : b.id - a.id);
-  const advTotal = round2(adv.reduce((sum, t) => sum + t.amount, 0));
-  const lbl = id => id === EXT_ID ? 'Extérieur' : ((getSupportById(id) || {}).label || '');
-  const advRows = adv.map(t => `<div class="bgt-row" onclick="openEditFromList(${t.id})">
-      <div class="bgt-row-label"><span class="adv-dot ${t.advance}" style="flex-shrink:0"></span><span>${t.date.split('-').reverse().join('/')} · ${esc(lbl(t.from))} → ${esc(lbl(t.to))}</span></div>
-      <div class="bgt-row-right"><div class="bgt-row-amt">${fmt(t.amount)}</div></div></div>`).join('');
-  const advBox = `<div class="bgt-group">
-    <div class="bgt-group-head"><span class="bgt-group-name">Avances en cours</span><span class="bgt-group-amt"><strong>${adv.length ? fmt(advTotal) : '–'}</strong></span></div>
-    ${adv.length ? advRows : '<div class="bgt-row" style="cursor:default"><span class="bgt-rest muted">Aucune avance en cours</span></div>'}
-  </div>`;
-
   el.innerHTML = `<div class="month-nav">
       <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left"></i></button>
       <span class="month-label">${MONTHS[viewMonth]} ${viewYear}</span>
       <button onclick="changeMonth(1)"><i class="ti ti-chevron-right"></i></button>
     </div>
-    ${blocks}${control}${advBox}`;
+    ${blocks}${control}`;
 }
 function esc(v) {
   return String(v == null ? '' : v).replace(/[&<>"']/g, ch => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
@@ -1246,7 +1219,7 @@ function updatePocketVisibility(p) {
   show('grp-split-toggle', !split && canSplit);
   show('grp-split', split);
   if (split) updateSplitRemaining(p);
-  updateAdvanceVisibility(p);
+  updateAnnualVisibility(p);
 }
 
 // ===== Répartition d'une dépense (ou recette) sur plusieurs supports =====
@@ -1351,14 +1324,9 @@ function collectSplits(p, total) {
   if (Math.abs(sum - total) > 0.004) return { error: 'La répartition (' + fmt(sum) + ') ne correspond pas au montant total (' + fmt(total) + ').' };
   return { parts: lines.map(l => ({ support: l.support, ...(l.pocket ? { pocket: l.pocket } : {}), amount: round2(l.amount) })) };
 }
-// La case « Avance » n'apparaît que pour un transfert qui part d'un livret
-function updateAdvanceVisibility(p) {
+// La case « Paiement annuel » n'apparaît que pour une dépense
+function updateAnnualVisibility(p) {
   const type = p ? editTxType : txType;
-  const sp = getSupportById(document.getElementById(p + 'tx-support').value);
-  const show = type === 'transfer' && !!(sp && sp.savings);
-  document.getElementById(p + 'grp-advance').style.display = show ? 'block' : 'none';
-  if (!show) document.getElementById(p + 'tx-advance').checked = false;
-  // « Paiement annuel » : uniquement pour une dépense
   document.getElementById(p + 'grp-annual').style.display = type === 'expense' ? 'block' : 'none';
   if (type !== 'expense') document.getElementById(p + 'tx-annual').checked = false;
 }
@@ -1434,13 +1402,6 @@ function supportBadge(id, pocketId) {
 function slotMatches(ctx, supId, pocketId) {
   return supId === ctx.support && (ctx.pocket === undefined || (pocketId || null) === ctx.pocket);
 }
-function cycleAdvance(id) {
-  const t = transactions.find(x => x.id === id);
-  if (!t || !t.advance) return;
-  t.advance = t.advance === 'open' ? 'partial' : t.advance === 'partial' ? 'done' : 'open';
-  save();
-  updateDisplays();
-}
 function renderList(el, txs, withActions, ctx) {
   if (!txs.length) { el.innerHTML='<div class="empty-state"><i class="ti ti-receipt" style="font-size:32px;display:block;margin-bottom:8px"></i>Aucune transaction</div>'; return; }
   el.innerHTML = txs.map(t => {
@@ -1462,9 +1423,6 @@ function renderList(el, txs, withActions, ctx) {
       const shown = ctx ? round2(txParts(t).filter(x => slotMatches(ctx, x.support, x.pocket)).reduce((s, x) => s + x.amount, 0)) : t.amount;
       const delta = t.type==='income' ? shown : -shown;   // effet sur le solde
       amountHtml=`<div class="tx-amount ${delta>=0?'pos':'neg'}">${delta>=0?'+':'-'}${fmt(Math.abs(delta))}</div>`;
-    }
-    if (t.type==='transfer' && t.advance) {
-      amountHtml = `<div class="tx-right"><span class="adv-dot ${t.advance}" title="Avance" onclick="event.stopPropagation(); cycleAdvance(${t.id})"></span>${amountHtml}</div>`;
     }
     const isSelected = selectedIds.has(t.id);
     const checkbox = withActions && selectMode ? `<div class="tx-checkbox">${isSelected?'<i class="ti ti-check" style="font-size:12px;color:white"></i>':''}</div>` : '';
@@ -1777,7 +1735,6 @@ function addTransaction() {
     tx={id:Date.now(),type:'transfer',desc:document.getElementById('tx-desc').value.trim(),amount,date,from:support,to};
     if(fromPocket) tx.fromPocket=fromPocket;
     if(toPocket) tx.toPocket=toPocket;
-    if(document.getElementById('tx-advance').checked) tx.advance='open';
   } else {
     const desc=document.getElementById('tx-desc').value.trim();
     if(txType==='income'&&amount<0){alert('Un montant négatif n\'est possible que pour une dépense.');return;}
@@ -1936,9 +1893,8 @@ function startEditTransaction() {
     t.splits.forEach(x => addSplitLine('edit-', { support: x.support, pocket: x.pocket || '', amount: x.amount }));
   }
   applyTypeUI('edit-', t.type);
-  document.getElementById('edit-tx-advance').checked = !!t.advance;
   document.getElementById('edit-tx-annual').checked = !!t.annual;
-  updateAdvanceVisibility('edit-');
+  updateAnnualVisibility('edit-');
   document.getElementById('edit-modal').classList.add('open');
 }
 function closeEditModal() { document.getElementById('edit-modal').classList.remove('open'); }
@@ -2000,7 +1956,6 @@ function saveEditTransaction() {
     nt = { id: old.id, type: 'transfer', desc: document.getElementById('edit-tx-desc').value.trim(), amount, date, from: support, to };
     if (fromPocket) nt.fromPocket = fromPocket;
     if (toPocket) nt.toPocket = toPocket;
-    if (document.getElementById('edit-tx-advance').checked) nt.advance = old.advance || 'open';
   } else {
     const desc = document.getElementById('edit-tx-desc').value.trim();
     if (editTxType === 'income' && amount < 0) { alert('Un montant négatif n\'est possible que pour une dépense.'); return; }
@@ -2573,20 +2528,19 @@ function sheetsDateCell(d) {   // vraie date pour Sheets (numéro de série)
 function sheetsTransactionsRows(from, to) {
   const supName = id => { if (id === EXT_ID) return 'Extérieur'; const s = getSupportById(id); return s ? s.label : ''; };
   const pocketName = (id, p) => { const s = getSupportById(id); const k = s && p ? getPocket(s, p) : null; return k ? k.label : ''; };
-  const advLabel = { open: 'À rembourser', partial: 'En cours', done: 'Remboursée' };
-  const rows = [['Date', 'Mois', 'Type', 'Description', 'Groupe', 'Catégorie', 'Enveloppe', 'Support', 'Poche', 'Vers support', 'Vers poche', 'Montant', 'Avance']];
+  const rows = [['Date', 'Mois', 'Type', 'Description', 'Groupe', 'Catégorie', 'Enveloppe', 'Support', 'Poche', 'Vers support', 'Vers poche', 'Montant']];
   transactions.filter(t => t.date >= from && t.date <= to)
     .sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id)
     .forEach(t => {
       const base = [sheetsDateCell(t.date), t.date.slice(0, 7)];
       if (t.type === 'transfer') {
-        rows.push([...base, 'Transfert', t.desc || '', '', '', '', supName(t.from), pocketName(t.from, t.fromPocket), supName(t.to), pocketName(t.to, t.toPocket), t.amount, advLabel[t.advance] || '']);
+        rows.push([...base, 'Transfert', t.desc || '', '', '', '', supName(t.from), pocketName(t.from, t.fromPocket), supName(t.to), pocketName(t.to, t.toPocket), t.amount]);
         return;
       }
       const cat = getCatById(t.cat);
       txParts(t).forEach(x => {
         const env = t.type === 'expense' ? ((getEnvelopeById(envelopeOfPart(t, x)) || {}).label || '') : '';
-        rows.push([...base, t.type === 'expense' ? 'Dépense' : 'Recette', t.desc || '', (cat && cat.group) || '', cat ? cat.label : '', env, supName(x.support), pocketName(x.support, x.pocket), '', '', x.amount, '']);
+        rows.push([...base, t.type === 'expense' ? 'Dépense' : 'Recette', t.desc || '', (cat && cat.group) || '', cat ? cat.label : '', env, supName(x.support), pocketName(x.support, x.pocket), '', '', x.amount]);
       });
     });
   return rows;
@@ -2813,7 +2767,7 @@ function exportSheets() {
   const wb = XLSX.utils.book_new();
   addSheet(wb, 'Bilan', sheetsBilanRows(from, to), [30, 12, 14, 3, 18, 11, 11, 13, 11, 14, 3, 30, 14, 14, 14, 11, 14, 14]);
   addSheet(wb, 'Récap dépenses', sheetsRecapRows(from, to), [14, 32, 12, 12].concat(new Array(24).fill(10)));
-  addSheet(wb, 'Transactions', sheetsTransactionsRows(from, to), [11, 9, 11, 28, 14, 30, 13, 18, 18, 18, 18, 11, 13]);
+  addSheet(wb, 'Transactions', sheetsTransactionsRows(from, to), [11, 9, 11, 28, 14, 30, 13, 18, 18, 18, 18, 11]);
   const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
   const file = new File([data], 'budget-' + from + '_' + to + '.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   closeSheetsModal();
@@ -2826,11 +2780,9 @@ function exportSheets() {
 
 // ===== REMISE À 0 =====
 let resetBackupDone = false;
-// Les avances pas encore remboursées (rouge ou orange) sont conservées
-function resetKeeps(t) { return t.type === 'transfer' && (t.advance === 'open' || t.advance === 'partial'); }
 function resetCompute() {
   const cutoff = todayStr();
-  const gone = t => t.date <= cutoff && !resetKeeps(t);
+  const gone = t => t.date <= cutoff;
   const toDelete = transactions.filter(gone), kept = transactions.filter(t => !gone(t));
   // Nouveau solde de départ = ancien solde de départ + effet des transactions supprimées
   const dSup = {}, dBucket = {};
@@ -2859,11 +2811,10 @@ function resetCompute() {
 function openResetModal() {
   resetBackupDone = false;
   const r = resetCompute();
-  const nbAdv = r.kept.filter(resetKeeps).length;
   const lines = r.next.map(sp => `<div style="margin-top:6px"><strong>${esc(sp.label)}</strong> : ${fmt(sp.initial)}`
     + pocketsOf(sp).map(p => `<div style="margin-left:14px;font-size:13px;color:var(--color-text-secondary)">${esc(p.label)} : ${fmt(p.initial)}</div>`).join('') + '</div>').join('');
   document.getElementById('reset-modal-body').innerHTML =
-    `<p style="line-height:1.5">${r.toDelete.length} transaction(s) seront supprimées. ${nbAdv} avance(s) en cours (rouge ou orange) sont conservées.</p>`
+    `<p style="line-height:1.5">${r.toDelete.length} transaction(s) seront supprimées.</p>`
     + `<p style="line-height:1.5;margin-top:8px">Budgets : tous les budgets sont effacés et une nouvelle période démarre ce mois-ci (à définir).</p>`
     + `<div class="section-title" style="margin-top:16px">Nouveaux soldes de départ</div>${lines}`
     + (r.problems.length ? `<p style="margin-top:16px;color:var(--color-text-danger);line-height:1.5">Impossible : des transactions du livret « ${esc(r.problems.join(', '))} » n'ont pas de poche. Modifiez-les d'abord.</p>` : '')
