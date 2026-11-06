@@ -294,9 +294,9 @@ body { background: #f0f0f0; }
 </div>
   <div class="nav">
     <button class="nav-btn active" onclick="showPage('main')" id="nav-main"><i class="ti ti-home"></i>Accueil</button>
-    <button class="nav-btn" onclick="showPage('dashboard')" id="nav-dashboard"><i class="ti ti-layout-dashboard"></i>Soldes</button>
+    <button class="nav-btn" onclick="showPage('dashboard')" id="nav-dashboard"><i class="ti ti-layout-dashboard"></i>Comptes</button>
     <button class="nav-btn" onclick="showPage('budget')" id="nav-budget"><i class="ti ti-chart-bar"></i>Budget</button>
-    <button class="nav-btn" onclick="showPage('synthese')" id="nav-synthese"><i class="ti ti-arrows-exchange"></i>Synthèse</button>
+    <button class="nav-btn" onclick="showPage('synthese')" id="nav-synthese"><i class="ti ti-arrows-exchange"></i>Virements</button>
   </div>
 
   <div class="page active" id="page-main">
@@ -354,9 +354,9 @@ body { background: #f0f0f0; }
   <div class="section-title" style="margin-top:28px">Enveloppes</div>
   <div id="envelopes-settings"></div>
 
-  <div class="section-title" style="margin-top:28px">Supports</div>
+  <div class="section-title" style="margin-top:28px">Comptes</div>
   <div id="supports-settings"></div>
-  <button class="add-cat-btn" onclick="openSupportEdit(null)"><i class="ti ti-plus"></i> Ajouter un support</button>
+  <button class="add-cat-btn" onclick="openSupportEdit(null)"><i class="ti ti-plus"></i> Ajouter un compte</button>
 
   <div class="section-title" style="margin-top:28px">Sauvegarde des données</div>
   <button class="btn-primary" onclick="exportData()"><i class="ti ti-download" style="margin-right:6px"></i>Exporter mes données</button>
@@ -364,7 +364,7 @@ body { background: #f0f0f0; }
   <button class="btn-secondary" onclick="openSheetsModal()"><i class="ti ti-table-export" style="margin-right:6px"></i>Exporter pour Google Sheets</button>
   <input type="file" id="import-file" accept=".json,application/json" style="display:none" onchange="importData(this.files[0]); this.value=''" />
     <div class="section-title" style="margin-top:28px">Fin d'année</div>
-  <button class="btn-secondary" onclick="openResetModal()"><i class="ti ti-eraser" style="margin-right:6px"></i>Remise à 0</button>    
+  <button class="btn-secondary" onclick="openResetModal()"><i class="ti ti-eraser" style="margin-right:6px"></i>Nouvelle période</button>    
 </div>
   <div class="page" id="page-analyse">
   <div class="settings-top">
@@ -376,7 +376,7 @@ body { background: #f0f0f0; }
   <div class="page" id="page-support">
   <div class="settings-top">
     <button class="back-btn" onclick="history.back()"><i class="ti ti-chevron-left"></i> Retour</button>
-    <h2>Support</h2>
+    <h2>Compte</h2>
   </div>
   <div id="support-content"></div>
 </div>
@@ -414,7 +414,7 @@ body { background: #f0f0f0; }
       </div>
     </div>
     <div class="form-group" id="grp-support">
-      <label id="lbl-support">Support</label>
+      <label id="lbl-support">Compte</label>
       <select id="tx-support" onchange="onSupportPick('', 'from')"></select>
     </div>
     <div class="form-group" id="grp-pocket" style="display:none">
@@ -422,17 +422,17 @@ body { background: #f0f0f0; }
       <select id="tx-pocket"></select>
     </div>
     <div class="form-group" id="grp-split-toggle" style="display:none">
-      <button type="button" class="link-btn" onclick="toggleSplit('', true)"><i class="ti ti-arrows-split-2"></i> Répartir sur plusieurs supports</button>
+      <button type="button" class="link-btn" onclick="toggleSplit('', true)"><i class="ti ti-arrows-split-2"></i> Répartir sur plusieurs comptes</button>
     </div>
     <div class="form-group" id="grp-split" style="display:none">
-      <label>Répartition par support</label>
+      <label>Répartition par compte</label>
       <div id="split-lines"></div>
-      <button type="button" class="add-cat-btn" onclick="addSplitLine('')"><i class="ti ti-plus"></i> Ajouter un support</button>
+      <button type="button" class="add-cat-btn" onclick="addSplitLine('')"><i class="ti ti-plus"></i> Ajouter un compte</button>
       <div class="split-remaining" id="split-remaining"></div>
-      <button type="button" class="link-btn" onclick="toggleSplit('', false)">Un seul support</button>
+      <button type="button" class="link-btn" onclick="toggleSplit('', false)">Un seul compte</button>
     </div>
     <div class="form-group" id="grp-support-to" style="display:none">
-      <label>Support cible</label>
+      <label>Compte cible</label>
       <select id="tx-support-to" onchange="onSupportPick('', 'to')"></select>
     </div>
     <div class="form-group" id="grp-pocket-to" style="display:none">
@@ -511,7 +511,7 @@ body { background: #f0f0f0; }
       </div>
     </div>
     <div class="form-group" id="edit-grp-support">
-      <label id="edit-lbl-support">Support</label>
+      <label id="edit-lbl-support">Compte</label>
       <select id="edit-tx-support" onchange="onSupportPick('edit-', 'from')"></select>
     </div>
     <div class="form-group" id="edit-grp-pocket" style="display:none">
@@ -519,17 +519,17 @@ body { background: #f0f0f0; }
       <select id="edit-tx-pocket"></select>
     </div>
     <div class="form-group" id="edit-grp-split-toggle" style="display:none">
-      <button type="button" class="link-btn" onclick="toggleSplit('edit-', true)"><i class="ti ti-arrows-split-2"></i> Répartir sur plusieurs supports</button>
+      <button type="button" class="link-btn" onclick="toggleSplit('edit-', true)"><i class="ti ti-arrows-split-2"></i> Répartir sur plusieurs comptes</button>
     </div>
     <div class="form-group" id="edit-grp-split" style="display:none">
-      <label>Répartition par support</label>
+      <label>Répartition par compte</label>
       <div id="edit-split-lines"></div>
-      <button type="button" class="add-cat-btn" onclick="addSplitLine('edit-')"><i class="ti ti-plus"></i> Ajouter un support</button>
+      <button type="button" class="add-cat-btn" onclick="addSplitLine('edit-')"><i class="ti ti-plus"></i> Ajouter un compte</button>
       <div class="split-remaining" id="edit-split-remaining"></div>
-      <button type="button" class="link-btn" onclick="toggleSplit('edit-', false)">Un seul support</button>
+      <button type="button" class="link-btn" onclick="toggleSplit('edit-', false)">Un seul compte</button>
     </div>
     <div class="form-group" id="edit-grp-support-to" style="display:none">
-      <label>Support cible</label>
+      <label>Compte cible</label>
       <select id="edit-tx-support-to" onchange="onSupportPick('edit-', 'to')"></select>
     </div>
     <div class="form-group" id="edit-grp-pocket-to" style="display:none">
@@ -578,7 +578,7 @@ body { background: #f0f0f0; }
 <div class="modal-bg" id="support-edit-modal">
   <div class="modal">
     <button class="modal-close" onclick="closeSupportEdit()"><i class="ti ti-x"></i></button>
-    <h2 id="support-edit-title">Nouveau support</h2>
+    <h2 id="support-edit-title">Nouveau compte</h2>
     <div class="form-group">
       <label>Nom</label>
       <input type="text" id="support-edit-name" placeholder="Ex : Compte courant, Tickets restaurant" />
@@ -589,12 +589,12 @@ body { background: #f0f0f0; }
       <p id="support-edit-initial-note" style="display:none;font-size:12px;color:var(--color-text-secondary);margin-top:6px;line-height:1.4">Calculé : total des montants de départ des poches.</p>
     </div>
     <div class="form-group">
-      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="support-edit-savings" style="width:auto;margin:0" onchange="refreshSupportInitial()" /> Ce support est un livret (épargne)</label>
-      <p style="font-size:12px;color:var(--color-text-secondary);margin-top:6px;line-height:1.4">Une dépense payée directement depuis un livret est « Exceptionnelle » : elle garde sa catégorie dans les bilans, mais ne pèse pas sur le budget du mois.</p>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer"><input type="checkbox" id="support-edit-savings" style="width:auto;margin:0" onchange="refreshSupportInitial()" /> Ce compte est un compte d’épargne</label>
+      <p style="font-size:12px;color:var(--color-text-secondary);margin-top:6px;line-height:1.4">Une dépense payée directement depuis un compte d’épargne est « hors budget » : elle garde sa catégorie dans les bilans, mais ne pèse pas sur le budget du mois.</p>
     </div>
     <div class="form-group">
       <label>Poches (facultatif)</label>
-      <p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:8px;line-height:1.4">Divisez ce support en poches. Son solde est alors toujours le total de ses poches, et son solde de départ se calcule à partir du départ de chaque poche. Touchez le support dans « Soldes » pour voir le détail.</p>
+      <p style="font-size:12px;color:var(--color-text-secondary);margin-bottom:8px;line-height:1.4">Divisez ce compte en poches. Son solde est alors toujours le total de ses poches, et son solde de départ se calcule à partir du départ de chaque poche. Touchez le compte dans « Comptes » pour voir le détail.</p>
       <div id="support-edit-pockets"></div>
       <button type="button" class="add-cat-btn" onclick="addPocketRow()"><i class="ti ti-plus"></i> Ajouter une poche</button>
     </div>
@@ -625,14 +625,14 @@ body { background: #f0f0f0; }
   </div>
 </div>
 
-<!-- Remise à 0 -->
+<!-- Nouvelle période -->
 <div class="modal-bg" id="reset-modal">
   <div class="modal">
     <button class="modal-close" onclick="closeResetModal()"><i class="ti ti-x"></i></button>
-    <h2>Remise à 0</h2>
+    <h2>Nouvelle période</h2>
     <div id="reset-modal-body"></div>
     <button class="btn-secondary" id="reset-backup-btn" onclick="resetBackup()">1. Sauvegarder (fichier JSON)</button>
-    <button class="btn-primary" id="reset-go-btn" onclick="applyReset()" disabled style="opacity:.4">2. Remettre à 0</button>
+    <button class="btn-primary" id="reset-go-btn" onclick="applyReset()" disabled style="opacity:.4">2. Démarrer la nouvelle période</button>
     <button class="btn-secondary" onclick="closeResetModal()">Annuler</button>
   </div>
 </div>
@@ -874,7 +874,7 @@ if (migrateTxList(transactions, SUPPORTS)) save();
 const ENVELOPES = [
   { id: 'courant',      label: 'Courant',      kind: 'budget' },
   { id: 'vacances',     label: 'Vacances',     kind: 'budget' },
-  { id: 'exceptionnel', label: 'Exceptionnel', kind: 'exceptional' }
+  { id: 'exceptionnel', label: 'Hors budget', kind: 'exceptional' }
 ];
 const DEFAULT_GROUP_ENVELOPE = { 'Besoins': 'courant', 'Loisirs': 'courant', 'Vacances': 'vacances' };
 let GROUP_ENV = {};      // nom de groupe → id d'enveloppe de budget
@@ -1067,14 +1067,14 @@ function renderSynthese() {
   const livretDetail = [
     ['Recettes du compte', s.R],
     ['Dépenses hors compte', s.H],
-    ['Transferts hors livrets', -s.T],
+    ['Transferts hors épargne', -s.T],
     ['Budget total', -round2(s.bC + s.bV)],
     ...(s.done.livret !== 0 ? [['Déjà viré', -s.done.livret]] : [])
   ].map(([n, a]) => `<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--color-text-secondary);padding:3px 0"><span>${n}</span><span>${signed(a)}</span></div>`).join('');
   const blocks = [
     { key: 'courant',  label: 'Courant',  tg: ENV_TARGETS.courant },
     { key: 'vacances', label: 'Vacances', tg: ENV_TARGETS.vacances },
-    { key: 'livret',   label: 'Livret A', tg: savingsTarget() }
+    { key: 'livret',   label: 'Épargne', tg: savingsTarget() }
   ].map(b => {
     const v = s.rest[b.key];
     const cls = v > 0 ? 'pos' : v < 0 ? 'neg' : 'zero';
@@ -1092,7 +1092,7 @@ function renderSynthese() {
   }).join('');
 
   const control = `<div class="syn-control">
-    <div><span>Écart</span><span class="${Math.abs(s.gap) < 0.005 ? 'ok' : 'ko'}">${Math.abs(s.gap) < 0.005 ? '0,00 € ✓' : sgn(s.gap)}</span></div>
+    <div><span>Contrôle</span><span class="${Math.abs(s.gap) < 0.005 ? 'ok' : 'ko'}">${Math.abs(s.gap) < 0.005 ? '0,00 € ✓' : sgn(s.gap)}</span></div>
   </div>`;
 
   el.innerHTML = `<div class="month-nav">
@@ -1186,7 +1186,7 @@ function fillSupportSelect(selectId, selected) {
   const el = document.getElementById(selectId);
   const withExt = /support-to$/.test(selectId);   // seule la liste « Vers » propose l'extérieur
   el.innerHTML = SUPPORTS.map(sp => `<option value="${esc(sp.id)}">${esc(sp.label)}</option>`).join('')
-    + (withExt ? `<option value="${EXT_ID}">Extérieur</option>` : '');
+    + (withExt ? `<option value="${EXT_ID}">Hors appli</option>` : '');
   el.value = (getSupportById(selected) || (withExt && selected === EXT_ID)) ? selected : SUPPORTS[0].id;
 }
 // Liste des poches d'un support dans un <select>. Un support qui a des poches impose d'en choisir une :
@@ -1255,7 +1255,7 @@ function onSplitSupport(supSel, p) {
 }
 function removeSplitLine(btn, p) {
   const box = document.getElementById(p + 'split-lines');
-  if (box.querySelectorAll('.split-line').length <= 2) { alert('Une répartition a besoin d\'au moins deux lignes. Utilisez « Un seul support » pour revenir à un seul support.'); return; }
+  if (box.querySelectorAll('.split-line').length <= 2) { alert('Une répartition a besoin d\'au moins deux lignes. Utilisez « Un seul compte » pour revenir à un seul compte.'); return; }
   splitPick(btn).remove();
   updateSplitRemaining(p);
 }
@@ -1389,7 +1389,7 @@ function supportColors(id, pocketId) {
   return { bg: `hsl(${hh} ${Math.round(70 + t * 15)}% ${Math.round(93 - t * 16)}%)`, fg: `hsl(${hh} 65% 24%)` };
 }
 function supportBadge(id, pocketId) {
-  if (id === EXT_ID) return '<span class="tx-payment-badge" style="background:#F1EFE8;color:#5F5E5A"><i class="ti ti-external-link" style="font-size:10px"></i>Extérieur</span>';
+  if (id === EXT_ID) return '<span class="tx-payment-badge" style="background:#F1EFE8;color:#5F5E5A"><i class="ti ti-external-link" style="font-size:10px"></i>Hors appli</span>';
   const sp = getSupportById(id);
   if (!sp) return '';
   const pocket = pocketId ? getPocket(sp, pocketId) : null;
@@ -1594,7 +1594,7 @@ function renderBudgetPage(txs) {
         <div class="bgt-row-right"><div class="bgt-row-amt">${fmtAuto(amount)}</div></div></div>`;
     }).join('');
     html += `<div class="bgt-group">
-      <div class="bgt-group-head"><span class="bgt-group-name">Exceptionnel<em>hors budget</em></span><span class="bgt-group-amt"><strong>${fmtAuto(spentEnvAll.exceptionnel)}</strong></span></div>
+      <div class="bgt-group-head"><span class="bgt-group-name">Hors budget<em>payé depuis l’épargne</em></span><span class="bgt-group-amt"><strong>${fmtAuto(spentEnvAll.exceptionnel)}</strong></span></div>
       ${excRows}
     </div>`;
   }
@@ -1683,7 +1683,7 @@ function applyTypeUI(p, type) {
   q('amount-hint').style.display = type==='expense' ? 'block' : 'none';
   q('sign-btn').style.display = type==='expense' ? '' : 'none';
   q('grp-support-to').style.display = type==='transfer' ? 'block' : 'none';
-  q('lbl-support').textContent = type==='transfer' ? 'Support de départ' : 'Support';
+  q('lbl-support').textContent = type==='transfer' ? 'Compte de départ' : 'Compte';
   q('lbl-pocket').textContent = type==='transfer' ? 'Poche de départ' : 'Poche';
   updatePocketVisibility(p);
 }
@@ -1731,7 +1731,7 @@ function addTransaction() {
     const fromPocket=readPocket('tx-pocket'), toPocket=readPocket('tx-pocket-to');
     if(amount<0){alert('Un montant négatif n\'est possible que pour une dépense.');return;}
     if(!amount||amount<=0||!date){alert('Veuillez remplir tous les champs.');return;}
-    if(support===to&&fromPocket===toPocket){alert('Le départ et la cible doivent être différents (support ou poche).');return;}
+    if(support===to&&fromPocket===toPocket){alert('Le départ et la cible doivent être différents (compte ou poche).');return;}
     tx={id:Date.now(),type:'transfer',desc:document.getElementById('tx-desc').value.trim(),amount,date,from:support,to};
     if(fromPocket) tx.fromPocket=fromPocket;
     if(toPocket) tx.toPocket=toPocket;
@@ -1952,7 +1952,7 @@ function saveEditTransaction() {
     const fromPocket = readPocket('edit-tx-pocket'), toPocket = readPocket('edit-tx-pocket-to');
     if (amount < 0) { alert('Un montant négatif n\'est possible que pour une dépense.'); return; }
     if (!amount||amount<=0||!date) { alert('Veuillez remplir tous les champs.'); return; }
-    if (support === to && fromPocket === toPocket) { alert('Le départ et la cible doivent être différents (support ou poche).'); return; }
+    if (support === to && fromPocket === toPocket) { alert('Le départ et la cible doivent être différents (compte ou poche).'); return; }
     nt = { id: old.id, type: 'transfer', desc: document.getElementById('edit-tx-desc').value.trim(), amount, date, from: support, to };
     if (fromPocket) nt.fromPocket = fromPocket;
     if (toPocket) nt.toPocket = toPocket;
@@ -2092,10 +2092,10 @@ function renderEnvelopesSettings() {
     return `<div class="env-card"><div class="env-card-title">${esc(e.label)}</div>
       <p class="env-card-text"><strong>Groupes :</strong> ${groups.length ? groups.map(esc).join(', ') : 'aucun (à choisir dans les groupes ci-dessus)'}</p>
       <div class="env-card-link">
-        <label>Livret lié</label>
+        <label>Compte d’épargne lié</label>
         <select onchange="setEnvelopeSupport('${e.id}', this.value)"${savingsSupports.length ? '' : ' disabled'}>${supOpts}</select>
         ${pocketOpts ? `<label>Poche liée</label><select onchange="setEnvelopePocket('${e.id}', this.value)">${pocketOpts}</select>` : ''}
-        ${savingsSupports.length ? '' : '<p class="env-card-text">Aucun livret : cochez « Ce support est un livret » dans un support pour pouvoir le lier.</p>'}
+        ${savingsSupports.length ? '' : '<p class="env-card-text">Aucun compte d’épargne : cochez « Ce compte est un compte d’épargne » dans un compte pour pouvoir le lier.</p>'}
       </div></div>`;
   }).join('');
 }
@@ -2224,7 +2224,7 @@ function openSupportEdit(id) {
   supportEditIcon = sp ? sp.icon : 'ti-wallet';
   supportEditColor = sp ? supportHue(sp.id) : nextFreeHue();
   renderSupportColorPicker();
-  document.getElementById('support-edit-title').textContent = sp ? 'Modifier le support' : 'Nouveau support';
+  document.getElementById('support-edit-title').textContent = sp ? 'Modifier le compte' : 'Nouveau compte';
   document.getElementById('support-edit-name').value = sp ? sp.label : '';
   document.getElementById('support-edit-savings').checked = !!(sp && sp.savings);
   const initialInput = document.getElementById('support-edit-initial');
@@ -2271,7 +2271,7 @@ function saveSupportEdit() {
   const name = cleanName(document.getElementById('support-edit-name').value);
   if (!name) { alert('Veuillez saisir un nom.'); return; }
   if (SUPPORTS.some(sp => sp.id !== supportEditId && sp.label.toLowerCase() === name.toLowerCase())) {
-    alert('Un support porte déjà ce nom.'); return;
+    alert('Un compte porte déjà ce nom.'); return;
   }
   const raw = parseFloat(document.getElementById('support-edit-initial').value);
   let initial = isNaN(raw) ? 0 : Math.round(raw * 100) / 100;
@@ -2332,7 +2332,7 @@ function saveSupportEdit() {
 function deleteSupport(id) {
   const sp = getSupportById(id);
   if (!sp) return;
-  if (SUPPORTS.length <= 1) { alert('Il faut conserver au moins un support.'); return; }
+  if (SUPPORTS.length <= 1) { alert('Il faut conserver au moins un compte.'); return; }
   const target = SUPPORTS.find(x => x.id !== id);
   const touches = t => t.type === 'transfer' ? (t.from === id || t.to === id) : txParts(t).some(x => x.support === id);
   const moved = transactions.filter(touches).length;
@@ -2344,8 +2344,8 @@ function deleteSupport(id) {
     && (t.from === id ? '' : (t.fromPocket || '')) === (t.to === id ? '' : (t.toPocket || ''))).map(t => t.id));
   let msg = moved
     ? moved + ' transaction(s) utilisent « ' + sp.label + ' ». Elles seront déplacées vers « ' + target.label + ' ».'
-    : 'Supprimer le support « ' + sp.label + ' » ?';
-  if (pointless.size) msg += '\n' + pointless.size + ' transfert(s) entre ces deux supports seront supprimés (ils n\'auraient plus de sens).';
+    : 'Supprimer le compte « ' + sp.label + ' » ?';
+  if (pointless.size) msg += '\n' + pointless.size + ' transfert(s) entre ces deux comptes seront supprimés (ils n\'auraient plus de sens).';
   if (moved) msg += ' Supprimer quand même ?';
   if (!confirm(msg)) return;
   transactions.forEach(t => {
@@ -2407,7 +2407,7 @@ function renderDashboard() {
   }).join('');
   el.innerHTML = `<div class="section-title">Soldes au ${todayStr().split('-').reverse().join('/')}</div>
     <div class="dash-grid">${tiles}</div>
-    <button class="btn-secondary" onclick="showPage('settings')"><i class="ti ti-settings" style="margin-right:6px"></i>Gérer les supports</button>`;
+    <button class="btn-secondary" onclick="showPage('settings')"><i class="ti ti-settings" style="margin-right:6px"></i>Gérer les comptes</button>`;
 }
 
 // ===== DÉTAIL D'UN SUPPORT : transactions du mois, avec filtre par poche =====
@@ -2526,9 +2526,9 @@ function sheetsDateCell(d) {   // vraie date pour Sheets (numéro de série)
   return { t: 'n', v: Math.round(Date.UTC(+d.slice(0, 4), +d.slice(5, 7) - 1, +d.slice(8, 10)) / 86400000) + 25569, z: 'dd/mm/yyyy' };
 }
 function sheetsTransactionsRows(from, to) {
-  const supName = id => { if (id === EXT_ID) return 'Extérieur'; const s = getSupportById(id); return s ? s.label : ''; };
+  const supName = id => { if (id === EXT_ID) return 'Hors appli'; const s = getSupportById(id); return s ? s.label : ''; };
   const pocketName = (id, p) => { const s = getSupportById(id); const k = s && p ? getPocket(s, p) : null; return k ? k.label : ''; };
-  const rows = [['Date', 'Mois', 'Type', 'Description', 'Groupe', 'Catégorie', 'Enveloppe', 'Support', 'Poche', 'Vers support', 'Vers poche', 'Montant']];
+  const rows = [['Date', 'Mois', 'Type', 'Description', 'Groupe', 'Catégorie', 'Enveloppe', 'Compte', 'Poche', 'Vers compte', 'Vers poche', 'Montant']];
   transactions.filter(t => t.date >= from && t.date <= to)
     .sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id)
     .forEach(t => {
@@ -2631,11 +2631,11 @@ function sheetsRecapRows(from, to) {
     const start = rows.length + 1, sums = zeros();
     excCats.forEach(c => {
       const vals = exc[c.id], r = rows.length + 1;
-      rows.push([c.group || '', c.label, 'Exceptionnel', avgCell(r, vals), ...vals.map(v => sheetsNum(v))]);
+      rows.push([c.group || '', c.label, 'Hors budget', avgCell(r, vals), ...vals.map(v => sheetsNum(v))]);
       vals.forEach((v, i) => { sums[i] = round2(sums[i] + v); });
     });
     const end = rows.length, r = end + 1;
-    rows.push(['Exceptionnel', 'Total Exceptionnel', 'Exceptionnel', avgCell(r, sums),
+    rows.push(['Hors budget', 'Total Hors budget', 'Hors budget', avgCell(r, sums),
       ...sums.map((v, i) => sheetsNum(v, `SUM(${sheetsCol(F + i)}${start}:${sheetsCol(F + i)}${end})`))]);
   }
   return rows;
@@ -2742,7 +2742,7 @@ function sheetsBilanRows(from, to) {
   }).filter(x => !x.optional || x.debut || x.tr || x.ext || x.inc || x.exp);
   const c2 = cAvg + 2;
   put(2, c2, 'ÉPARGNE');
-  ['Livret / poche', 'Début de période', 'Versements nets', "Sorties vers l'extérieur", 'Recettes', 'Dépenses exceptionnelles', 'Fin de période'].forEach((h, i) => put(3, c2 + i, h));
+  ['Compte d’épargne / poche', 'Début de période', 'Versements nets', 'Sorties hors appli', 'Recettes', 'Dépenses hors budget', 'Fin de période'].forEach((h, i) => put(3, c2 + i, h));
   rowsE.forEach((x, i) => {
     const r = 4 + i;
     put(r, c2, x.label); put(r, c2 + 1, sheetsNum(x.debut)); put(r, c2 + 2, sheetsNum(x.tr)); put(r, c2 + 3, sheetsNum(x.ext)); put(r, c2 + 4, sheetsNum(x.inc)); put(r, c2 + 5, sheetsNum(x.exp));
@@ -2817,7 +2817,7 @@ function openResetModal() {
     `<p style="line-height:1.5">${r.toDelete.length} transaction(s) seront supprimées.</p>`
     + `<p style="line-height:1.5;margin-top:8px">Budgets : tous les budgets sont effacés et une nouvelle période démarre ce mois-ci (à définir).</p>`
     + `<div class="section-title" style="margin-top:16px">Nouveaux soldes de départ</div>${lines}`
-    + (r.problems.length ? `<p style="margin-top:16px;color:var(--color-text-danger);line-height:1.5">Impossible : des transactions du livret « ${esc(r.problems.join(', '))} » n'ont pas de poche. Modifiez-les d'abord.</p>` : '')
+    + (r.problems.length ? `<p style="margin-top:16px;color:var(--color-text-danger);line-height:1.5">Impossible : des transactions du compte d’épargne « ${esc(r.problems.join(', '))} » n'ont pas de poche. Modifiez-les d'abord.</p>` : '')
     + `<p style="margin:16px 0 8px;line-height:1.5">Avant de continuer, fais ton export Google Sheets, puis la sauvegarde ci-dessous.</p>`;
   const go = document.getElementById('reset-go-btn');
   go.disabled = true; go.style.opacity = '.4';
@@ -2835,7 +2835,7 @@ function applyReset() {
   if (!resetBackupDone) return;
   const r = resetCompute();
   if (r.problems.length) return;
-  if (!confirm('Remettre à 0 ? ' + r.toDelete.length + ' transaction(s) seront supprimées, ainsi que tous les budgets. Cette action est définitive (sauf en restaurant la sauvegarde).')) return;
+  if (!confirm('Démarrer une nouvelle période ? ' + r.toDelete.length + ' transaction(s) seront supprimées, ainsi que tous les budgets. Cette action est définitive (sauf en restaurant la sauvegarde).')) return;
   SUPPORTS = r.next; saveSupports();
   transactions = r.kept;
   budgets = {};
@@ -3106,7 +3106,7 @@ function renderAnalyse() {
     headHtml = `<div class="det-sec"><b>${MONTHS[viewMonth]}</b><span>${getBudgetForCat(analyseCatId) === null ? 'sans budget' : ''}</span></div>
       <div><span style="font-size:26px;font-weight:500">${fmtInt(spent)}</span> <span style="font-size:14px;color:var(--color-text-secondary)">dépensé</span></div>`;
   }
-  const excHtml = exceptional !== 0 ? `<div class="det-note">Exceptionnel (payé depuis un livret, hors budget) : ${fmt(exceptional)}</div>` : '';
+  const excHtml = exceptional !== 0 ? `<div class="det-note">Hors budget (payé depuis un compte d’épargne) : ${fmt(exceptional)}</div>` : '';
 
   // Transactions du mois affiché uniquement
   const listHtml = `<div class="section-title">${txs.length} transaction${txs.length > 1 ? 's' : ''}</div><div class="transaction-list" id="analyse-list"></div>`;
