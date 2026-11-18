@@ -637,7 +637,7 @@ body { background: #f0f0f0; }
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
   
 <script>
 const MONTHS = ['Janvier','Février','Mars','Avril','Mai','Juin','Juillet','Août','Septembre','Octobre','Novembre','Décembre'];
@@ -2528,19 +2528,39 @@ function sheetsDateCell(d) {   // vraie date pour Sheets (numéro de série)
 function sheetsTransactionsRows(from, to) {
   const supName = id => { if (id === EXT_ID) return 'Hors appli'; const s = getSupportById(id); return s ? s.label : ''; };
   const pocketName = (id, p) => { const s = getSupportById(id); const k = s && p ? getPocket(s, p) : null; return k ? k.label : ''; };
-  const rows = [['Date', 'Mois', 'Type', 'Description', 'Groupe', 'Catégorie', 'Enveloppe', 'Compte', 'Poche', 'Vers compte', 'Vers poche', 'Montant']];
+  const isSav = id => id === EXT_ID || !!(getSupportById(id) || {}).savings;
+  const nature = id => isSav(id) ? 'Épargne' : 'Courant';
+  const place = (id, p) => { const s = supName(id), k = pocketName(id, p); return k ? (k.startsWith(s) ? k : s + ' – ' + k) : s; };
+  const tgC = ENV_TARGETS.courant || null, tgV = ENV_TARGETS.vacances || null, tgE = savingsTarget();
+  // Pour un virement : [ventilation, montant signé vu du courant (+ = mis de côté), montant reçu par l'épargne]
+  const transferInfo = t => {
+    const fs = isSav(t.from), ts = isSav(t.to);
+    if (fs && ts) return [(t.to === EXT_ID && t.from !== EXT_ID) ? 'Placement hors appli' : '', 0, 0];
+    if (!fs && !ts) return ['', 0, 0];
+    const out = !fs, sav = out ? t.to : t.from, pk = out ? t.toPocket : t.fromPocket, sign = out ? 1 : -1;
+    const v = sav === EXT_ID ? 'Autres virements'
+      : isTarget(tgC, sav, pk) ? 'Report courant'
+      : isTarget(tgV, sav, pk) ? 'Report vacs'
+      : isTarget(tgE, sav, pk) ? 'Économies' : 'Autres virements';
+    return [v, round2(sign * t.amount), sav === EXT_ID ? 0 : round2(sign * t.amount)];
+  };
+  const rows = [['Date', 'Mois', 'Type', 'Description', 'Groupe', 'Catégorie', 'Enveloppe', 'Compte', 'Poche', 'Vers compte', 'Vers poche', 'Montant',
+    'Nature compte', 'Compte – poche', 'Libellé', 'Ventilation virement', 'Virement signé', 'Reçu par l’épargne']];
   transactions.filter(t => t.date >= from && t.date <= to)
     .sort((a, b) => a.date.localeCompare(b.date) || a.id - b.id)
     .forEach(t => {
-      const base = [sheetsDateCell(t.date), t.date.slice(0, 7)];
+      const base = [sheetsDateCell(t.date), t.date.slice(0, 7)], lib = t.desc || '(sans description)';
       if (t.type === 'transfer') {
-        rows.push([...base, 'Transfert', t.desc || '', '', '', '', supName(t.from), pocketName(t.from, t.fromPocket), supName(t.to), pocketName(t.to, t.toPocket), t.amount]);
+        const [vent, signe, recu] = transferInfo(t);
+        rows.push([...base, 'Transfert', t.desc || '', '', '', '', supName(t.from), pocketName(t.from, t.fromPocket), supName(t.to), pocketName(t.to, t.toPocket), t.amount,
+          '', '', lib, vent, signe, recu]);
         return;
       }
       const cat = getCatById(t.cat);
       txParts(t).forEach(x => {
         const env = t.type === 'expense' ? ((getEnvelopeById(envelopeOfPart(t, x)) || {}).label || '') : '';
-        rows.push([...base, t.type === 'expense' ? 'Dépense' : 'Recette', t.desc || '', (cat && cat.group) || '', cat ? cat.label : '', env, supName(x.support), pocketName(x.support, x.pocket), '', '', x.amount]);
+        rows.push([...base, t.type === 'expense' ? 'Dépense' : 'Recette', t.desc || '', (cat && cat.group) || '', cat ? cat.label : '', env, supName(x.support), pocketName(x.support, x.pocket), '', '', x.amount,
+          nature(x.support), place(x.support, x.pocket), lib, '', '', '']);
       });
     });
   return rows;
@@ -2641,134 +2661,266 @@ function sheetsRecapRows(from, to) {
   return rows;
 }
 
-// ----- Bilan de la période -----
-function sheetsBilanRows(from, to) {
+// ----- Bilan de la période (1er onglet) -----
+// Mise en forme : Recettes (bleu) · Dépenses (orange) · Solde (vert), en trois blocs : Global, Courant, Épargne.
+// Tout est calculé par des formules SUMIFS sur l'onglet « Transactions » ; les cellules jaunes sont à saisir à la main.
+function buildBilanSheet(wb, from, to, trRows) {
   const n = sheetsMonths(from, to).length;
-  const inP = t => t.date >= from && t.date <= to;
-  const sum = a => round2(a.reduce((s, v) => s + v, 0));
-  const grid = [];
-  const put = (r, c, v) => {   // r, c : positions à partir de 0
-    while (grid.length <= r) grid.push([]);
-    while (grid[r].length < c) grid[r].push('');
-    grid[r][c] = v;
+  const data = trRows.slice(1);
+  const ws = wb.addWorksheet('Bilan', { pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 } });
+  [2, 4, 2, 16, 22, 24, 14, 3, 16, 42, 20, 16, 3, 38, 28, 14, 2].forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+
+  // Colonnes de l'onglet Transactions (indices à partir de 0)
+  const TC = { type: 2, group: 4, cat: 5, montant: 11, nature: 12, place: 13, libelle: 14, vent: 15, signe: 16, recu: 17 };
+  const norm = v => String(v == null ? '' : v).toLowerCase();
+  const L = k => sheetsCol(TC[k]);
+  const q = s => '"' + String(s).replace(/"/g, '""') + '"';
+  const eq = (k, lit) => [k, lit === '' ? '"="' : q(lit), v => norm(v) === norm(lit)];            // critère : valeur fixe
+  const same = (k, addr, lit) => [k, lit === '' ? '"="' : addr, v => norm(v) === norm(lit)];       // critère : valeur d'une cellule du Bilan
+  const rng = k => `Transactions!$${L(k)}:$${L(k)}`;
+  const sifs = (sumKey, crits) => ({   // formule SUMIFS + sa valeur calculée (affichée tant que le tableur n'a pas recalculé)
+    f: `SUMIFS(${rng(sumKey)},${crits.map(c => rng(c[0]) + ',' + c[1]).join(',')})`,
+    v: round2(data.reduce((s, r) => crits.every(c => c[2](r[TC[c[0]]])) ? s + (Number(r[TC[sumKey]]) || 0) : s, 0))
+  });
+
+  const COL = { blue: 'FFA4C2F4', orange: 'FFF9CB9C', green: 'FFB6D7A8', manual: 'FFFFF2CC' };
+  const fillOf = argb => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
+  const MONEY = '#,##0.00;[Red]-#,##0.00;;', MONEY0 = '#,##0.00;[Red]-#,##0.00;0.00';
+  const V = new Map(), manualCells = new Set();
+  const num = a => V.get(a) || 0;
+  const put = (addr, x, o = {}) => {
+    const c = ws.getCell(addr);
+    if (x && typeof x === 'object') { c.value = { formula: x.f, result: x.v }; V.set(addr, x.v); }
+    else { c.value = x; if (typeof x === 'number') V.set(addr, x); }
+    if (o.money) c.numFmt = o.money === 2 ? MONEY0 : MONEY;
+    if (o.bold || o.italic || o.red) c.font = { bold: !!o.bold, italic: !!o.italic, ...(o.red ? { color: { argb: 'FFCC0000' } } : {}) };
+    if (o.manual) { c.fill = fillOf(COL.manual); manualCells.add(addr); }
+    return c;
   };
-  const ref = (r, c) => sheetsCol(c) + (r + 1);
-  const fr = d => d.split('-').reverse().join('/');
-  put(0, 0, 'Bilan du ' + fr(from) + ' au ' + fr(to) + ' (' + n + ' mois)');
-
-  // --- Bloc 1 : REVENUS (par catégorie, puis par support) ---
-  const incCat = {}, incSup = {};
-  transactions.filter(t => t.type === 'income' && inP(t)).forEach(t => {
-    const cat = INCOME_CATS.find(c => c.id === t.cat), key = cat ? cat.label : 'Sans catégorie';
-    txParts(t).forEach(x => {
-      incCat[key] = round2((incCat[key] || 0) + x.amount);
-      incSup[x.support] = round2((incSup[x.support] || 0) + x.amount);
-    });
-  });
-  const listBlock = (r0, c0, titre, entete, entries) => {   // tableau « libellé | total | moyenne » ; renvoie la prochaine ligne libre
-    put(r0, c0, titre);
-    put(r0 + 1, c0, entete); put(r0 + 1, c0 + 1, 'Total'); put(r0 + 1, c0 + 2, 'Moyenne mensuelle');
-    entries.forEach(([k, v], i) => {
-      const r = r0 + 2 + i;
-      put(r, c0, k); put(r, c0 + 1, sheetsNum(v)); put(r, c0 + 2, sheetsNum(v / n, `${ref(r, c0 + 1)}/${n}`));
-    });
-    const r = r0 + 2 + entries.length, tot = sum(entries.map(e => e[1]));
-    put(r, c0, 'TOTAL');
-    put(r, c0 + 1, sheetsNum(tot, entries.length ? `SUM(${ref(r0 + 2, c0 + 1)}:${ref(r - 1, c0 + 1)})` : null));
-    put(r, c0 + 2, sheetsNum(tot / n, `${ref(r, c0 + 1)}/${n}`));
-    return r + 1;
+  const sumF = (col, r1, r2) => { let v = 0; for (let r = r1; r <= r2; r++) v += num(col + r); return { f: `SUM(${col}${r1}:${col}${r2})`, v: round2(v) }; };
+  const addF = addrs => ({ f: addrs.length ? addrs.join('+') : '0', v: round2(addrs.reduce((s, a) => s + num(a), 0)) });
+  const destOf = tg => {
+    const sp = tg ? getSupportById(tg.support) : null;
+    if (!sp) return '(destination non définie)';
+    const pk = tg.pocket ? getPocket(sp, tg.pocket) : null;
+    return sp.label + (pk ? ' – ' + pk.label : '');
   };
-  const catKeys = [...INCOME_CATS.map(c => c.label), 'Sans catégorie'].filter((k, i, a) => incCat[k] !== undefined && a.indexOf(k) === i);
-  const nextRow = listBlock(2, 0, 'REVENUS', 'Catégorie', catKeys.map(k => [k, incCat[k]]));
-  listBlock(nextRow + 1, 0, 'REVENUS PAR SUPPORT', 'Support', SUPPORTS.filter(s => incSup[s.id] !== undefined).map(s => [s.label, incSup[s.id]]));
+  const paint = (r1, r2) => {   // fond de couleur des trois colonnes, sauf cellules à saisir
+    [[4, 7, COL.blue], [9, 12, COL.orange], [14, 16, COL.green]].forEach(([c1, c2, color]) => {
+      for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) {
+        const cell = ws.getCell(r, c);
+        if (!manualCells.has(cell.address)) cell.fill = fillOf(color);
+      }
+    });
+  };
+  const titles = (r, t1, t2, t3) => {
+    [['D', 'G', t1], ['I', 'L', t2], ['N', 'P', t3]].forEach(([a, b, t]) => {
+      ws.mergeCells(`${a}${r}:${b}${r}`);
+      put(a + r, t, { bold: true }).alignment = { horizontal: 'center' };
+    });
+  };
 
-  // --- Bloc 2 : DÉPENSES (supports en lignes, enveloppes en colonnes) ---
-  const dep = {};
-  transactions.filter(t => t.type === 'expense' && inP(t)).forEach(t => txParts(t).forEach(x => {
-    const e = envelopeOfPart(t, x);
-    dep[x.support] = dep[x.support] || {};
-    dep[x.support][e] = round2((dep[x.support][e] || 0) + x.amount);
-  }));
-  const k = ENVELOPES.length, c1 = 4, cTot = c1 + 1 + k, cAvg = cTot + 1;
-  put(2, c1, 'DÉPENSES');
-  put(3, c1, 'Support');
-  ENVELOPES.forEach((e, i) => put(3, c1 + 1 + i, e.label));
-  put(3, cTot, 'Total'); put(3, cAvg, 'Moyenne mensuelle');
-  const depSup = SUPPORTS.filter(s => dep[s.id]);
-  depSup.forEach((s, i) => {
-    const r = 4 + i;
-    put(r, c1, s.label);
-    ENVELOPES.forEach((e, j) => put(r, c1 + 1 + j, sheetsNum(dep[s.id][e.id] || 0)));
-    const tot = sum(ENVELOPES.map(e => dep[s.id][e.id] || 0));
-    put(r, cTot, sheetsNum(tot, `SUM(${ref(r, c1 + 1)}:${ref(r, c1 + k)})`));
-    put(r, cAvg, sheetsNum(tot / n, `${ref(r, cTot)}/${n}`));
-  });
-  const rt = 4 + depSup.length;
-  put(rt, c1, 'TOTAL');
-  for (let j = 0; j <= k; j++) {
-    const col = c1 + 1 + j, v = sum(depSup.map(s => j < k ? (dep[s.id][ENVELOPES[j].id] || 0) : sum(ENVELOPES.map(e => dep[s.id][e.id] || 0))));
-    put(rt, col, sheetsNum(v, depSup.length ? `SUM(${ref(4, col)}:${ref(rt - 1, col)})` : null));
-  }
-  put(rt, cAvg, sheetsNum(sum(depSup.map(s => sum(ENVELOPES.map(e => dep[s.id][e.id] || 0)))) / n, `${ref(rt, cTot)}/${n}`));
+  put('D1', 'Nombre de mois', { bold: true });
+  put('E1', n, { bold: true }).alignment = { horizontal: 'left' };
+  ws.mergeCells('I1:L1');
+  put('I1', 'Cellules jaunes : à compléter à la main', { manual: true, italic: true });
+  ws.getCell('I1').fill = fillOf(COL.manual);
+  const MOIS = '$E$1';
 
-  // --- Bloc 3 : ÉPARGNE (une ligne par livret ou poche) ---
-  const buckets = [];
-  SUPPORTS.filter(s => s.savings).forEach(s => {
-    const pk = pocketsOf(s);
-    if (pk.length) {
-      pk.forEach(p => buckets.push({ sup: s, pocket: p.id, label: p.label.startsWith(s.label) ? p.label : s.label + ' – ' + p.label }));
-      buckets.push({ sup: s, pocket: null, label: s.label + ' – (sans poche)', optional: true });
-    } else buckets.push({ sup: s, pocket: null, label: s.label });
-  });
-  const initOf = b => b.pocket
-    ? (Number((getPocket(b.sup, b.pocket) || {}).initial) || 0)
-    : (Number(b.sup.initial) || 0) - pocketsOf(b.sup).reduce((s, p) => s + (Number(p.initial) || 0), 0);
-  const flows = (b, test) => {
-    const r = { tr: 0, ext: 0, inc: 0, exp: 0 };
-    transactions.forEach(t => {
-      if (!test(t.date)) return;
-      if (t.type === 'transfer') {
-        if (t.from === b.sup.id && (t.fromPocket || null) === b.pocket) { if (t.to === EXT_ID) r.ext += t.amount; else r.tr -= t.amount; }
-        if (t.to === b.sup.id && (t.toPocket || null) === b.pocket) r.tr += t.amount;
-      } else txParts(t).forEach(x => {
-        if (x.support === b.sup.id && (x.pocket || null) === b.pocket) r[t.type === 'income' ? 'inc' : 'exp'] += x.amount;
+  // ===== Un bloc (Courant ou Épargne) =====
+  const block = (r0, kind) => {
+    const courant = kind === 'courant', nat = courant ? 'Courant' : 'Épargne';
+    titles(r0, 'RECETTES', 'DÉPENSES', 'SOLDE');
+    const hr = r0 + 1;
+    ['Catégorie', 'Description', 'Compte', 'Montant'].forEach((t, i) => put(String.fromCharCode(68 + i) + hr, t, { bold: true }));
+    ['Catégorie', 'Sous-catégories', courant ? 'Moyenne mensuelle' : 'Poche', 'Montant annuel'].forEach((t, i) => put(String.fromCharCode(73 + i) + hr, t, { bold: true }));
+    ['Poste', 'Destination', 'Montant'].forEach((t, i) => put(String.fromCharCode(78 + i) + hr, t, { bold: true }));
+
+    // --- Recettes : une ligne par description et par compte, plus des lignes libres ---
+    let r = hr + 1;
+    const seen = new Set(), inc = [];
+    data.filter(x => x[TC.type] === 'Recette' && x[TC.nature] === nat).forEach(x => {
+      const k = x[TC.libelle] + '|' + x[TC.place];
+      if (!seen.has(k)) { seen.add(k); inc.push([x[TC.libelle], x[TC.place]]); }
+    });
+    inc.sort((a, b) => a[0].localeCompare(b[0], 'fr') || a[1].localeCompare(b[1], 'fr'));
+    const recStart = r;
+    inc.forEach(([lib, pl]) => {
+      put('D' + r, null, { manual: true }); put('E' + r, lib); put('F' + r, pl);
+      put('G' + r, sifs('montant', [eq('type', 'Recette'), eq('nature', nat), same('libelle', '$E' + r, lib), same('place', '$F' + r, pl)]), { money: 1 });
+      r++;
+    });
+    for (let i = 0; i < 2; i++) { ['D', 'E', 'F', 'G'].forEach(c => put(c + r, null, { manual: true })); ws.getCell('G' + r).numFmt = MONEY; r++; }
+    put('D' + r, 'TOTAL', { bold: true, red: true }); put('G' + r, sumF('G', recStart, r - 1), { money: 2, bold: true, red: true });
+    const recTot = r, recEnd = r;
+
+    // --- Dépenses ---
+    let d = hr + 1;
+    const avg = row => put('K' + row, { f: `IFERROR(L${row}/${MOIS},0)`, v: round2(num('L' + row) / n) });
+    let depTot;
+    if (courant) {
+      const orphan = data.some(x => x[TC.type] === 'Dépense' && x[TC.nature] === 'Courant' && x[TC.cat] === '');
+      const groupList = [...GROUPS];
+      if (orphan || EXPENSE_CATS.some(c => !GROUPS.includes(c.group))) groupList.push(null);
+      const manualGroup = GROUPS.includes('Besoins') ? 'Besoins' : GROUPS[0];
+      const envTots = [];
+      budgetEnvelopes().forEach(e => {
+        const gTots = [];
+        groupList.filter(g => envelopeOfGroup(g) === e.id).forEach(g => {
+          const gName = g === null ? 'Sans groupe' : g;
+          const cats = EXPENSE_CATS.filter(c => g === null ? !GROUPS.includes(c.group) : c.group === g).map(c => ({ label: c.label, lit: c.label }));
+          if (g === null && orphan) cats.push({ label: '(sans catégorie)', lit: '' });
+          const withManual = g === manualGroup;
+          if (!cats.length && !withManual) return;
+          const gStart = d;
+          if (withManual) {
+            put('I' + d, gName); put('J' + d, 'Récurrent');
+            put('L' + d, null, { manual: true }); ws.getCell('L' + d).numFmt = MONEY; avg(d); ws.getCell('K' + d).numFmt = MONEY; d++;
+          }
+          cats.forEach(c => {
+            put('I' + d, gName); put('J' + d, c.label);
+            put('L' + d, sifs('montant', [eq('type', 'Dépense'), eq('nature', 'Courant'), ...(g === null ? [] : [same('group', '$I' + d, g)]), same('cat', '$J' + d, c.lit)]), { money: 1 });
+            avg(d); ws.getCell('K' + d).numFmt = MONEY; d++;
+          });
+          put('I' + d, gName, { bold: true, italic: true }); put('J' + d, 'Total', { bold: true, italic: true });
+          put('L' + d, sumF('L', gStart, d - 1), { money: 2, bold: true, italic: true }); avg(d); ws.getCell('K' + d).numFmt = MONEY0;
+          gTots.push('L' + d); d++;
+        });
+        if (!gTots.length) return;
+        const lab = e.id === 'courant' ? 'Total - hors vacances' : e.id === 'vacances' ? 'Total - vacances' : 'Total - ' + e.label.toLowerCase();
+        put('I' + d, 'Total', { bold: true, italic: true, red: true }); put('J' + d, lab, { bold: true, italic: true, red: true });
+        put('L' + d, addF(gTots), { money: 2, bold: true, italic: true, red: true }); avg(d); ws.getCell('K' + d).numFmt = MONEY0;
+        envTots.push('L' + d); d++;
       });
-    });
-    return r;
+      put('I' + d, 'TOTAL', { bold: true, red: true }); put('J' + d, 'TOTAL', { bold: true, red: true });
+      put('L' + d, addF(envTots), { money: 2, bold: true, red: true }); avg(d); ws.getCell('K' + d).numFmt = MONEY0;
+      depTot = d;
+    } else {
+      // Dépenses payées depuis un livret (hors budget) : catégorie + compte/poche
+      const seenD = new Set(), combos = [];
+      data.filter(x => x[TC.type] === 'Dépense' && x[TC.nature] === 'Épargne').forEach(x => {
+        const k = [x[TC.group], x[TC.cat], x[TC.place]].join('|');
+        if (!seenD.has(k)) { seenD.add(k); combos.push([x[TC.group], x[TC.cat], x[TC.place]]); }
+      });
+      combos.sort((a, b) => a[0].localeCompare(b[0], 'fr') || a[1].localeCompare(b[1], 'fr') || a[2].localeCompare(b[2], 'fr'));
+      const dStart = d;
+      combos.forEach(([g, c, pl]) => {
+        put('I' + d, g); put('J' + d, c || '(sans catégorie)'); put('K' + d, pl);
+        put('L' + d, sifs('montant', [eq('type', 'Dépense'), eq('nature', 'Épargne'), same('group', '$I' + d, g), same('cat', '$J' + d, c), same('place', '$K' + d, pl)]), { money: 1 });
+        d++;
+      });
+      ['I', 'J', 'K', 'L'].forEach(c => put(c + d, null, { manual: true })); ws.getCell('L' + d).numFmt = MONEY; d++;
+      put('I' + d, 'TOTAL', { bold: true, red: true }); put('J' + d, 'TOTAL', { bold: true, red: true });
+      put('L' + d, sumF('L', dStart, d - 1), { money: 2, bold: true, red: true });
+      depTot = d;
+    }
+
+    // --- Solde ---
+    let s = hr + 1;
+    const sStart = s;
+    const line = (label, dest, x) => { put('N' + s, label); put('O' + s, dest); put('P' + s, x, { money: 2 }); s++; };
+    if (courant) {
+      line('Report vacs', destOf(ENV_TARGETS.vacances), sifs('signe', [eq('vent', 'Report vacs')]));
+      line('Report courant', destOf(ENV_TARGETS.courant), sifs('signe', [eq('vent', 'Report courant')]));
+      line('Économies', destOf(savingsTarget()), sifs('signe', [eq('vent', 'Économies')]));
+      line('Autres virements', 'Autres livrets, hors appli', sifs('signe', [eq('vent', 'Autres virements')]));
+    } else {
+      line('Revenus − dépenses', '', { f: `G${recTot}-L${depTot}`, v: round2(num('G' + recTot) - num('L' + depTot)) });
+      line('Virements reçus du courant', 'Report, économies, autres', { f: `SUM(${rng('recu')})`, v: round2(data.reduce((a, r2) => a + (Number(r2[TC.recu]) || 0), 0)) });
+      const pl = sifs('montant', [eq('vent', 'Placement hors appli')]);
+      line('Placement autres supports', 'Assurance vie, hors appli', { f: '-' + pl.f, v: -pl.v });
+    }
+    put('N' + s, 'TOTAL', { bold: true, red: true }); put('P' + s, sumF('P', sStart, s - 1), { money: 2, bold: true, red: true });
+    const soldeTot = s;
+    let end = Math.max(recEnd, depTot, s);
+    if (courant) {   // contrôle de cohérence : recettes − dépenses = total des virements
+      s += 2;
+      put('N' + s, 'Écart : recettes − dépenses − total', { bold: true });
+      const gap = round2(num('G' + recTot) - num('L' + depTot) - num('P' + soldeTot));
+      put('P' + s, { f: `ROUND(G${recTot}-L${depTot}-P${soldeTot},2)`, v: gap }, { money: 2, bold: true });
+      put('O' + s, { f: `IF(ABS(P${s})<0.005,"OK","À vérifier")`, v: Math.abs(gap) < 0.005 ? 'OK' : 'À vérifier' }, { bold: true });
+      ws.addConditionalFormatting({ ref: `O${s}:P${s}`, rules: [{ type: 'expression', formulae: [`ABS($P$${s})>=0.005`], style: { font: { bold: true, color: { argb: 'FFFF0000' } } } }] });
+      end = Math.max(end, s);
+    }
+    paint(r0, end);
+    ws.mergeCells(`B${r0}:B${end}`);
+    const lab = ws.getCell('B' + r0);
+    lab.value = courant ? 'COURANT' : 'ÉPARGNE';
+    lab.font = { bold: true };
+    lab.alignment = { textRotation: 'vertical', horizontal: 'center', vertical: 'middle' };
+    return { recTot, depTot, soldeTot, end };
   };
-  const rowsE = buckets.map(b => {
-    const before = flows(b, d => d < from), per = flows(b, d => d >= from && d <= to);
-    return { label: b.label, optional: b.optional, debut: round2(initOf(b) + before.tr - before.ext + before.inc - before.exp), tr: round2(per.tr), ext: round2(per.ext), inc: round2(per.inc), exp: round2(per.exp) };
-  }).filter(x => !x.optional || x.debut || x.tr || x.ext || x.inc || x.exp);
-  const c2 = cAvg + 2;
-  put(2, c2, 'ÉPARGNE');
-  ['Compte d’épargne / poche', 'Début de période', 'Versements nets', 'Sorties hors appli', 'Recettes', 'Dépenses hors budget', 'Fin de période'].forEach((h, i) => put(3, c2 + i, h));
-  rowsE.forEach((x, i) => {
-    const r = 4 + i;
-    put(r, c2, x.label); put(r, c2 + 1, sheetsNum(x.debut)); put(r, c2 + 2, sheetsNum(x.tr)); put(r, c2 + 3, sheetsNum(x.ext)); put(r, c2 + 4, sheetsNum(x.inc)); put(r, c2 + 5, sheetsNum(x.exp));
-    put(r, c2 + 6, sheetsNum(x.debut + x.tr - x.ext + x.inc - x.exp, `${ref(r, c2 + 1)}+${ref(r, c2 + 2)}-${ref(r, c2 + 3)}+${ref(r, c2 + 4)}-${ref(r, c2 + 5)}`));
+
+  const R0 = 11;   // ligne de départ du bloc Courant (la ligne 10 sert de marge au cadre épais)
+  const C = block(R0, 'courant');
+  const E = block(C.end + 2, 'epargne');
+
+  // ===== Global (en haut) =====
+  put('D3', 'GLOBAL', { bold: true }); ws.mergeCells('D3:P3'); ws.getCell('D3').alignment = { horizontal: 'center' };
+  titles(4, 'RECETTES', 'DÉPENSES', 'SOLDE');
+  [['Courant', C], ['Épargne', E]].forEach(([lab, b], i) => {
+    const r = 5 + i;
+    put('D' + r, lab); put('G' + r, { f: `G${b.recTot}`, v: num('G' + b.recTot) }, { money: 2 });
+    put('I' + r, lab); put('L' + r, { f: `L${b.depTot}`, v: num('L' + b.depTot) }, { money: 2 });
+    put('N' + r, lab); put('P' + r, { f: `G${r}-L${r}`, v: round2(num('G' + r) - num('L' + r)) }, { money: 2 });
   });
-  const re = 4 + rowsE.length;
-  put(re, c2, 'TOTAL');
-  ['debut', 'tr', 'ext', 'inc', 'exp'].forEach((key, i) => put(re, c2 + 1 + i, sheetsNum(sum(rowsE.map(x => x[key])), rowsE.length ? `SUM(${ref(4, c2 + 1 + i)}:${ref(re - 1, c2 + 1 + i)})` : null)));
-  put(re, c2 + 6, sheetsNum(sum(rowsE.map(x => x.debut + x.tr - x.ext + x.inc - x.exp)), rowsE.length ? `SUM(${ref(4, c2 + 6)}:${ref(re - 1, c2 + 6)})` : null));
-  return grid;
+  put('D7', 'TOTAL', { bold: true }); put('I7', 'TOTAL', { bold: true }); put('N7', 'TOTAL', { bold: true });
+  put('G7', sumF('G', 5, 6), { money: 2, bold: true });
+  put('L7', sumF('L', 5, 6), { money: 2, bold: true });
+  put('P7', { f: 'G7-L7', v: round2(num('G7') - num('L7')) }, { money: 2, bold: true });
+  paint(4, 7);
+
+  // ===== Cadres noirs : épais autour de Global et de l'ensemble Courant + Épargne, fins autour de chaque bloc =====
+  const edge = (r, c, side, style) => {
+    const cell = ws.getCell(r, c);
+    cell.border = { ...(cell.border || {}), [side]: { style, color: { argb: 'FF000000' } } };
+  };
+  const box = (r1, c1, r2, c2, style) => {
+    for (let c = c1; c <= c2; c++) { edge(r1, c, 'top', style); edge(r2, c, 'bottom', style); }
+    for (let r = r1; r <= r2; r++) { edge(r, c1, 'left', style); edge(r, c2, 'right', style); }
+  };
+  box(2, 1, 8, 17, 'medium');                 // Global
+  box(R0 - 1, 1, E.end + 1, 17, 'medium');    // Courant + Épargne
+  box(R0, 2, C.end, 16, 'thin');              // Courant
+  box(C.end + 2, 2, E.end, 16, 'thin');       // Épargne
+  return ws;
 }
-  
-function addSheet(wb, name, rows, widths) {
-  const ws = XLSX.utils.aoa_to_sheet(rows);
-  if (widths) ws['!cols'] = widths.map(w => ({ wch: w }));
-  XLSX.utils.book_append_sheet(wb, ws, name);
+
+// ----- Conversion d'un tableau de lignes (cellules {v, f, z}) en feuille ExcelJS -----
+function addSheet(wb, name, rows, widths, view) {
+  const ws = wb.addWorksheet(name, view ? { views: [view] } : {});
+  rows.forEach((row, i) => {
+    const r = ws.getRow(i + 1);
+    row.forEach((c, j) => {
+      if (c === '' || c == null) return;
+      const cell = r.getCell(j + 1);
+      if (typeof c === 'object') {
+        cell.value = c.f ? { formula: c.f, result: c.v } : c.v;
+        if (c.z) cell.numFmt = c.z;
+      } else cell.value = c;
+    });
+  });
+  ws.getRow(1).font = { bold: true };
+  if (widths) widths.forEach((w, i) => { ws.getColumn(i + 1).width = w; });
+  return ws;
 }
-function exportSheets() {
-  if (typeof XLSX === 'undefined') { alert("La bibliothèque d'export n'est pas encore chargée : réessayez avec une connexion."); return; }
+function buildWorkbook(from, to) {
+  const wb = new ExcelJS.Workbook();
+  wb.creator = 'Mon budget';
+  const trRows = sheetsTransactionsRows(from, to);
+  buildBilanSheet(wb, from, to, trRows);
+  addSheet(wb, 'Récap dépenses', sheetsRecapRows(from, to), [14, 32, 12, 12].concat(new Array(24).fill(10)), { state: 'frozen', xSplit: 4, ySplit: 1 });
+  addSheet(wb, 'Transactions', trRows, [11, 9, 11, 28, 14, 30, 13, 18, 18, 18, 18, 11, 14, 26, 28, 20, 14, 16], { state: 'frozen', ySplit: 1 });
+  wb.calcProperties.fullCalcOnLoad = true;   // le tableur recalcule toutes les formules à l'ouverture
+  return wb;
+}
+async function exportSheets() {
+  if (typeof ExcelJS === 'undefined') { alert("La bibliothèque d'export n'est pas encore chargée : réessayez avec une connexion."); return; }
   const from = document.getElementById('sheets-from').value, to = document.getElementById('sheets-to').value;
   if (!from || !to || from > to) { alert('Période invalide.'); return; }
-  const wb = XLSX.utils.book_new();
-  addSheet(wb, 'Bilan', sheetsBilanRows(from, to), [30, 12, 14, 3, 18, 11, 11, 13, 11, 14, 3, 30, 14, 14, 14, 11, 14, 14]);
-  addSheet(wb, 'Récap dépenses', sheetsRecapRows(from, to), [14, 32, 12, 12].concat(new Array(24).fill(10)));
-  addSheet(wb, 'Transactions', sheetsTransactionsRows(from, to), [11, 9, 11, 28, 14, 30, 13, 18, 18, 18, 18, 11]);
-  const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  let data;
+  try { data = await buildWorkbook(from, to).xlsx.writeBuffer(); }
+  catch (err) { alert("L'export a échoué : " + (err && err.message ? err.message : err)); return; }
   const file = new File([data], 'budget-' + from + '_' + to + '.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   closeSheetsModal();
   if (navigator.canShare && navigator.canShare({ files: [file] })) {
