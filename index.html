@@ -2740,7 +2740,7 @@ function buildBilanSheet(wb, from, to, trRows) {
     let r = hr + 1;
     const seen = new Set(), inc = [];
     data.filter(x => x[TC.type] === 'Recette' && x[TC.nature] === nat).forEach(x => {
-      const k = x[TC.libelle] + '|' + x[TC.place];
+      const k = norm(x[TC.libelle] + '|' + x[TC.place]);   // SUMIFS ignore la casse : on regroupe pareil
       if (!seen.has(k)) { seen.add(k); inc.push([x[TC.libelle], x[TC.place]]); }
     });
     inc.sort((a, b) => a[0].localeCompare(b[0], 'fr') || a[1].localeCompare(b[1], 'fr'));
@@ -2799,7 +2799,7 @@ function buildBilanSheet(wb, from, to, trRows) {
       // Dépenses payées depuis un livret (hors budget) : catégorie + compte/poche
       const seenD = new Set(), combos = [];
       data.filter(x => x[TC.type] === 'Dépense' && x[TC.nature] === 'Épargne').forEach(x => {
-        const k = [x[TC.group], x[TC.cat], x[TC.place]].join('|');
+        const k = norm([x[TC.group], x[TC.cat], x[TC.place]].join('|'));
         if (!seenD.has(k)) { seenD.add(k); combos.push([x[TC.group], x[TC.cat], x[TC.place]]); }
       });
       combos.sort((a, b) => a[0].localeCompare(b[0], 'fr') || a[1].localeCompare(b[1], 'fr') || a[2].localeCompare(b[2], 'fr'));
